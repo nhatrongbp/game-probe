@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>GameProbe.Core</RootNamespace>
+    <AssemblyName>GameProbe.Core</AssemblyName>
+  </PropertyGroup>
+</Project>

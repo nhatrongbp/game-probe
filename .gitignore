@@ -1,0 +1,17 @@
+# Build output
+bin/
+obj/
+.vs/
+TestResults/
+*.user
+*.suo
+
+# Runtime logs, snapshots, temp files
+logs/
+snapshots/
+*.jsonl
+*.tmp
+
+# FFZik reference binaries: kept locally, not committed
+FFZik/
+FFZik.zip

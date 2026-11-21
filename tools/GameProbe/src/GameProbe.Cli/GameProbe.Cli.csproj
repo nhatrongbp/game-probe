@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>GameProbe.Cli</RootNamespace>
+    <AssemblyName>gameprobe</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GameProbe.Core\GameProbe.Core.csproj" />
+  </ItemGroup>
+</Project>

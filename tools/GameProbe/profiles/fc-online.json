@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "name": "FC Online",
+  "target": {
+    "className": "FIFAKC",
+    "processName": "fczf.exe",
+    "titleContains": ""
+  },
+  "clickPoints": [
+    {
+      "id": "garena-login",
+      "name": "Garena login",
+      "x": { "mode": "client", "value": 568 },
+      "y": { "mode": "client", "value": 124 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": true,
+      "wParamMode": "button"
+    },
+    {
+      "id": "play",
+      "name": "Play button",
+      "x": { "mode": "anchor", "anchor": "center", "offset": 30 },
+      "y": { "mode": "anchor", "anchor": "bottom", "offset": -67 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": true,
+      "wParamMode": "button"
+    }
+  ],
+  "pixelProbes": [
+    {
+      "id": "play-color",
+      "name": "Play button state",
+      "x": { "mode": "anchor", "anchor": "center", "offset": 30 },
+      "y": { "mode": "anchor", "anchor": "bottom", "offset": -67 },
+      "expectedClass": 1,
+      "expectedRgb": "#00A0FF",
+      "tolerance": 8,
+      "watchIntervalMs": 200
+    }
+  ],
+  "memory": {
+    "minLength": 4,
+    "encodings": ["utf16le", "utf8"],
+    "regionTypes": ["private"],
+    "maxResults": 20000,
+    "filter": ""
+  },
+  "hotkeys": {
+    "captureCursor": "F8",
+    "testClick": "F9",
+    "readPixel": "F10",
+    "memorySnapshot": "F11",
+    "panic": "F12"
+  },
+  "logging": {
+    "level": "info",
+    "screenshotOnError": false
+  }
+}
