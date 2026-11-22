@@ -76,6 +76,8 @@ public static class ProfileValidator
         var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         ValidateClickPoints(profile.ClickPoints, seenIds, result);
         ValidatePixelProbes(profile.PixelProbes, seenIds, result);
+        ValidateRegions(profile.Regions, seenIds, result);
+        ValidatePriceRefresh(profile, result);
         ValidateMemory(profile.Memory, result);
         ValidateHotkeys(profile.Hotkeys, result);
         ValidateLogging(profile.Logging, result);
@@ -231,6 +233,258 @@ public static class ProfileValidator
                 result.AddError($"{path}.watchIntervalMs must be between 50 and 600000.");
             }
         }
+    }
+
+    private static void ValidateRegions(
+        List<RegionSpec>? regions,
+        HashSet<string> seenIds,
+        ProfileValidationResult result)
+    {
+        if (regions is null)
+        {
+            result.AddError("regions must not be null.");
+            return;
+        }
+
+        for (var i = 0; i < regions.Count; i++)
+        {
+            var region = regions[i];
+            var path = $"regions[{i}]";
+
+            if (region is null)
+            {
+                result.AddError($"{path} must not be null.");
+                continue;
+            }
+
+            ValidateId(region.Id, path, seenIds, result);
+
+            if (string.IsNullOrWhiteSpace(region.Name))
+            {
+                result.AddWarning($"{path}.name is empty; the id will be used in the UI.");
+            }
+
+            ValidateCoordinate(region.X, isXAxis: true, $"{path}.x", result);
+            ValidateCoordinate(region.Y, isXAxis: false, $"{path}.y", result);
+
+            if (region.Width is < 1 or > 4096)
+            {
+                result.AddError($"{path}.width must be between 1 and 4096.");
+            }
+
+            if (region.Height is < 1 or > 4096)
+            {
+                result.AddError($"{path}.height must be between 1 and 4096.");
+            }
+        }
+    }
+
+    private static void ValidatePriceRefresh(Profile profile, ProfileValidationResult result)
+    {
+        var options = profile.PriceRefresh;
+        if (options is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(options.RelistPointId))
+        {
+            result.AddError("priceRefresh.relistPointId must not be empty.");
+        }
+        else if (!ContainsClickPoint(profile, options.RelistPointId))
+        {
+            result.AddError(
+                $"priceRefresh.relistPointId '{options.RelistPointId}' does not exist in clickPoints.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.PricePointId))
+        {
+            result.AddError("priceRefresh.pricePointId must not be empty.");
+        }
+        else if (!ContainsClickPoint(profile, options.PricePointId))
+        {
+            result.AddError(
+                $"priceRefresh.pricePointId '{options.PricePointId}' does not exist in clickPoints.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.CancelPointId))
+        {
+            result.AddError("priceRefresh.cancelPointId must not be empty.");
+        }
+        else if (!ContainsClickPoint(profile, options.CancelPointId))
+        {
+            result.AddError(
+                $"priceRefresh.cancelPointId '{options.CancelPointId}' does not exist in clickPoints.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.BuyPointId))
+        {
+            result.AddError("priceRefresh.buyPointId must not be empty.");
+        }
+        else if (!ContainsClickPoint(profile, options.BuyPointId))
+        {
+            result.AddError(
+                $"priceRefresh.buyPointId '{options.BuyPointId}' does not exist in clickPoints.");
+        }
+
+        if (string.IsNullOrWhiteSpace(options.PopupProbeId))
+        {
+            result.AddError("priceRefresh.popupProbeId must not be empty.");
+        }
+        else if (!ContainsPixelProbe(profile, options.PopupProbeId))
+        {
+            result.AddError(
+                $"priceRefresh.popupProbeId '{options.PopupProbeId}' does not exist in pixelProbes.");
+        }
+        else if (!ProbeHasExpectedRgb(profile, options.PopupProbeId))
+        {
+            result.AddError(
+                $"priceRefresh.popupProbeId '{options.PopupProbeId}' must define expectedRgb.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.RelistGuardProbeId))
+        {
+            if (!ContainsPixelProbe(profile, options.RelistGuardProbeId))
+            {
+                result.AddError(
+                    $"priceRefresh.relistGuardProbeId '{options.RelistGuardProbeId}' " +
+                    "does not exist in pixelProbes.");
+            }
+            else if (!ProbeHasExpectedRgb(profile, options.RelistGuardProbeId))
+            {
+                result.AddError(
+                    $"priceRefresh.relistGuardProbeId '{options.RelistGuardProbeId}' " +
+                    "must define expectedRgb.");
+            }
+        }
+
+        RegionSpec? priceRegion = null;
+        if (string.IsNullOrWhiteSpace(options.PriceRegionId))
+        {
+            result.AddError("priceRefresh.priceRegionId must not be empty.");
+        }
+        else
+        {
+            priceRegion = FindRegion(profile, options.PriceRegionId);
+            if (priceRegion is null)
+            {
+                result.AddError(
+                    $"priceRefresh.priceRegionId '{options.PriceRegionId}' does not exist in regions.");
+            }
+        }
+
+        if (options.StartDelayMs is < 0 or > 60000)
+        {
+            result.AddError("priceRefresh.startDelayMs must be between 0 and 60000.");
+        }
+
+        if (options.SettleMs is < 0 or > 10000)
+        {
+            result.AddError("priceRefresh.settleMs must be between 0 and 10000.");
+        }
+
+        if (options.StableFrameGapMs is < 50 or > 2000)
+        {
+            result.AddError("priceRefresh.stableFrameGapMs must be between 50 and 2000.");
+        }
+
+        if (options.StableTimeoutMs is < 100 or > 30000)
+        {
+            result.AddError("priceRefresh.stableTimeoutMs must be between 100 and 30000.");
+        }
+
+        if (options.PollIntervalMs is < 20 or > 2000)
+        {
+            result.AddError("priceRefresh.pollIntervalMs must be between 20 and 2000.");
+        }
+
+        if (options.PopupTimeoutMs is < 100 or > 60000)
+        {
+            result.AddError("priceRefresh.popupTimeoutMs must be between 100 and 60000.");
+        }
+
+        if (options.CloseTimeoutMs is < 100 or > 60000)
+        {
+            result.AddError("priceRefresh.closeTimeoutMs must be between 100 and 60000.");
+        }
+
+        if (options.AttemptDelayMs is < 0 or > 60000)
+        {
+            result.AddError("priceRefresh.attemptDelayMs must be between 0 and 60000.");
+        }
+
+        if (options.MaxAttempts is < 1 or > 1000)
+        {
+            result.AddError("priceRefresh.maxAttempts must be between 1 and 1000.");
+        }
+
+        if (options.PriceClickDelayMs is < 0 or > 10000)
+        {
+            result.AddError("priceRefresh.priceClickDelayMs must be between 0 and 10000.");
+        }
+
+        if (options.ChannelTolerance is < 0 or > 128)
+        {
+            result.AddError("priceRefresh.channelTolerance must be between 0 and 128.");
+        }
+
+        if (options.MinChangedPixels is < 1 or > 1000000)
+        {
+            result.AddError("priceRefresh.minChangedPixels must be between 1 and 1000000.");
+        }
+        else if (priceRegion is { Width: > 0, Height: > 0 }
+                 && options.MinChangedPixels > priceRegion.Width * priceRegion.Height)
+        {
+            result.AddError(
+                "priceRefresh.minChangedPixels must not exceed the price region pixel count " +
+                $"({priceRegion.Width * priceRegion.Height}).");
+        }
+
+        if (options.ExpectedClientWidth is < 0 or > 100000)
+        {
+            result.AddError("priceRefresh.expectedClientWidth must be between 0 and 100000.");
+        }
+
+        if (options.ExpectedClientHeight is < 0 or > 100000)
+        {
+            result.AddError("priceRefresh.expectedClientHeight must be between 0 and 100000.");
+        }
+
+        if ((options.ExpectedClientWidth == 0) != (options.ExpectedClientHeight == 0))
+        {
+            result.AddError(
+                "priceRefresh.expectedClientWidth and expectedClientHeight must both be 0 or both be set.");
+        }
+
+        if (options.ExpectedDpi is not 0 and (< 48 or > 768))
+        {
+            result.AddError("priceRefresh.expectedDpi must be 0 or between 48 and 768.");
+        }
+    }
+
+    private static bool ContainsClickPoint(Profile profile, string id)
+    {
+        return profile.ClickPoints?.Any(
+                   item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase)) == true;
+    }
+
+    private static bool ContainsPixelProbe(Profile profile, string id)
+    {
+        return profile.PixelProbes?.Any(
+                   item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase)) == true;
+    }
+
+    private static bool ProbeHasExpectedRgb(Profile profile, string id)
+    {
+        var probe = profile.PixelProbes?.FirstOrDefault(
+            item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
+        return !string.IsNullOrWhiteSpace(probe?.ExpectedRgb);
+    }
+
+    private static RegionSpec? FindRegion(Profile profile, string id)
+    {
+        return profile.Regions?.FirstOrDefault(
+            item => item.Id.Equals(id, StringComparison.OrdinalIgnoreCase));
     }
 
     private static void ValidateCoordinate(

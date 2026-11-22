@@ -5,7 +5,7 @@ using GameProbe.Core.Windows;
 
 namespace GameProbe.Core.Capture;
 
-public sealed class PixelProbe
+public sealed class PixelProbe : IPixelReader
 {
     private readonly IActionLogger _logger;
     private readonly IPixelSource _source;

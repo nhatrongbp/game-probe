@@ -1,6 +1,8 @@
 # Kế hoạch triển khai GameProbe
 
-> **Trạng thái:** Đang triển khai — P0/P1/P2 đã xong và nghiệm thu; tiếp theo P3
+> **Trạng thái:** P0/P1/P2 đã xong và nghiệm thu; P3 code nằm ở branch riêng
+> `feat/gameprobe-p3` (FC Online chặn `ReadProcessMemory`, không merge main);
+> P5.1 — kịch bản làm mới giá mua cầu thủ bằng pixel — đã implement, chờ dry-run live.
 > **Ngày:** 2026-11-21 (cập nhật 2026-11-22)
 > **Tài liệu tham chiếu:** `docs/ffzik-auto-click-analysis.md`
 > **Đối tượng kiểm thử chính:** FC Online, dùng account test
@@ -13,11 +15,11 @@
 |---|---|
 | Ngôn ngữ / nền tảng | **C# .NET 8**, WinForms, x64, single-file publish |
 | Giao diện | **GUI + CLI** dùng chung `GameProbe.Core` |
-| Cách đọc text | **Window title + scan chuỗi trong RAM (UTF-16LE/UTF-8) + snapshot/diff**; known-address và OCR để giai đoạn sau |
+| Cách đọc text | **Chính: pixel/vùng ảnh**; memory scan (UTF-16LE/UTF-8) chỉ ở branch `feat/gameprobe-p3`; OCR để giai đoạn sau |
 | Đối tượng test | **FC Online trực tiếp**, account test; vẫn có unit test và fixture nhỏ để test offline trước |
 | Quyền chạy | Administrator (`requireAdministrator`) |
 | DPI | PerMonitorV2 |
-| Mức can thiệp | **Chỉ đọc memory**, không ghi, không inject, không dùng driver, không bypass anti-cheat |
+| Mức can thiệp | **Main: chỉ đọc pixel/region + PostMessage**; P3 branch: chỉ đọc memory; không ghi, không inject, không dùng driver, không bypass anti-cheat |
 
 ---
 
@@ -45,6 +47,10 @@
    - Scan memory của process game để tìm chuỗi text đang tồn tại trong RAM.
    - Chụp snapshot và so sánh diff giữa hai thời điểm.
    - Lọc, tìm kiếm, export kết quả.
+
+   > **Cập nhật 2026-11-22:** memory text đã triển khai ở branch `feat/gameprobe-p3`
+   > nhưng FC Online chặn `ReadProcessMemory` (Win32 5); không merge main.
+   > Hướng thay thế trên main là pixel/region + P5.1; OCR để sau.
 
 ### 1.2. Tiêu chí thành công của MVP
 
@@ -519,6 +525,7 @@ Quy ước:
 | P3 | MemoryScanner + TextExtractor + snapshot/diff + CLI | 1.5 ngày | Scan/diff chạy được, có test |
 | P4 | WinForms GUI + hotkey + log viewer | 1.0 ngày | Dùng được đầy đủ qua GUI |
 | P5 | Tích hợp và hiệu chuẩn trên FC Online | 1.0 ngày | Profile FC Online + biên bản test |
+| P5.1 | Region capture/comparer + scenario làm mới giá mua cầu thủ | 1.0–1.5 ngày | CLI region/scenario + profile + test; chờ dry-run live |
 | P6 | Đóng gói, README/usage/troubleshooting | 0.5 ngày | Bản single-file + tài liệu |
 | **Tổng** |  | **~6 ngày** | MVP hoàn chỉnh |
 
@@ -616,6 +623,12 @@ FC Online pixel đọc exact `#07F468`; click `missions-new` bằng CLI elevated
 
 **Done khi:** scan fixture tìm đúng chuỗi cắm sẵn; trên FC Online tìm được ít nhất một chuỗi visible; diff hoạt động.
 
+**Trạng thái P3 (2026-11-22):** code + CLI + unit test đã xong và pass trên branch
+`feat/gameprobe-p3` (118/118 test). Trên FC Online, `OpenProcess`/`VirtualQueryEx`
+thành công nhưng **1206/1206 `ReadProcessMemory` trả Win32 5**, 0 byte đọc được.
+Không bypass anti-cheat; P3 **không merge vào `main`** và được coi là dead code
+cho hướng hiện tại. `main` dùng pixel/region và P5.1.
+
 ### P4 — GUI
 
 - [ ] Target bar + window picker.
@@ -637,6 +650,72 @@ FC Online pixel đọc exact `#07F468`; click `missions-new` bằng CLI elevated
 - [ ] Ghi rõ điểm nào hoạt động, điểm nào game bỏ qua.
 
 **Done khi:** checklist mục 7 pass hoặc có biên bản lý do không pass; profile được lưu.
+
+### P5.1 — Kịch bản làm mới giá mua cầu thủ (pixel region)
+
+Mục tiêu: thay cho hướng memory đã bị chặn, dùng vùng pixel nhỏ quanh
+`Giá tối đa` để phát hiện giá đổi, rồi click giá mới + `Mua cầu thủ`.
+Không OCR, không đọc memory.
+
+**Luồng:**
+
+1. Guard: client `1280x720`, DPI 96, cửa sổ visible/không minimized;
+   pixel chữ xanh trên `Đăng ký lại` khớp.
+2. Click `relist` → chờ pixel đỏ của `Mua cầu thủ` → chờ popup ổn định
+   (2 frame giống nhau) → chụp baseline vùng giá → `Huỷ` → chờ đóng.
+3. Lặp: click `relist` → chờ popup → chụp stable frame → so baseline.
+   - Giống: `Huỷ`, chờ đóng, delay, lặp.
+   - Khác: lưu BMP; dry-run thì dừng; `--confirm-buy` thì click giá mới,
+     click `Mua cầu thủ`, kết thúc ngay.
+4. Hết `maxAttempts` → exit code 5, không click mù.
+
+**Thành phần code:**
+
+- `RegionSpec`, `RegionResolver` (client bounds).
+- `GdiRegionSource`: BitBlt + GetDIBits, fallback desktop khi window DC đen.
+- `RegionComparer`: exact RGB, channel tolerance, min changed pixels, bounding box.
+- `BmpWriter`: lưu baseline/current BMP.
+- `PriceRefreshScenario`: state machine + guard/timeout/retry.
+- CLI: `region capture`, `region stability`, `scenario price-refresh`.
+- Profile `fc-online.json`: click points `relist`, `price-value`, `cancel-buy`,
+  `buy`; probes `relist-guard`, `buy-dialog-red`; region `buy-dialog-max-price`;
+  config `priceRefresh`.
+
+**Tọa độ ban đầu** (suy ra từ ảnh 1920×1080, client origin `(8,31)`; cần xác nhận live):
+
+| Mục | Client `(x,y)` | Ghi chú |
+|---|---|---|
+| `relist` | `(991,181)` | hàng 1 |
+| `relist-guard` | `(972,181)` | `#08F368`, tolerance 24 |
+| `buy-dialog-red` | `(792,574)` | `#ED4428`; đóng popup `#2C392B` |
+| `buy-dialog-max-price` | `(942,285)` `96×26` | vùng `Giá tối đa` |
+| `price-value` | `(1022,299)` | click khi giá đổi |
+| `cancel-buy` | `(964,574)` | |
+| `buy` | `(830,574)` | |
+
+**Kiểm chứng:**
+
+```powershell
+gameprobe region capture --profile profiles\fc-online.json --region buy-dialog-max-price --out price.bmp
+gameprobe region stability --profile profiles\fc-online.json --region buy-dialog-max-price --count 10 --interval 200
+gameprobe scenario price-refresh --profile profiles\fc-online.json --dry-run
+gameprobe scenario price-refresh --profile profiles\fc-online.json --confirm-buy
+```
+
+**Done khi:**
+
+- Build Release sạch warning; unit test region comparer/GDI/resolver/BMP/scenario pass.
+- `region capture` lưu đúng vùng `Giá tối đa` (xem BMP).
+- `region stability` 10 frame cho 0 changed pixel khi popup đứng yên.
+- Dry-run 5–10 popup không false positive; nếu có, tăng `minChangedPixels`
+  hoặc `channelTolerance` và ghi lại.
+- Live `--confirm-buy` chỉ chạy sau dry-run pass; log/baseline/current BMP được lưu.
+- Nếu window DC đen và phải dùng desktop capture, cửa sổ game phải visible,
+  không bị che; capture method đổi giữa baseline/current thì abort.
+
+**Trạng thái (2026-11-22):** code + unit test đã xong (114/114 pass), chưa chạy
+live trên FC Online. Đây là hạng mục thay thế cho P3 memory text trên `main`;
+P3 code nằm ở branch `feat/gameprobe-p3`.
 
 ### P6 — Đóng gói và tài liệu
 
@@ -833,8 +912,9 @@ Sau khi dừng:
 
 | Vấn đề | Hiện tại | Khi nào chốt |
 |---|---|---|
-| Có cần OCR ngay không? | Không, để sau MVP | Sau T11/T12 nếu memory scan thất bại |
-| Có cần known-address ngay không? | Không, để sau MVP | Khi đã có offset từ RE |
+| Có dùng memory text trên game thật không? | Không; P3 chỉ ở branch riêng, game chặn Win32 5 | Đã chốt 2026-11-22 |
+| Có cần OCR ngay không? | Không; P5.1 chỉ so vùng giá | Chỉ khi cần biết nội dung/hướng giá |
+| Có cần known-address ngay không? | Không; không khả dụng khi memory bị chặn | Khi có môi trường đọc được |
 | Có cần `sendInput` không? | Chỉ là tuỳ chọn troubleshoot | Sau T6/T7 nếu PostMessage thất bại |
 | Có cần hỗ trợ fullscreen exclusive? | Không | Có thể dùng desktop capture ở phase sau |
 | Có cần đa ngôn ngữ UI? | Không | Sau MVP |
@@ -847,9 +927,10 @@ Sau khi dừng:
 1. P0: dựng solution + manifest + profile + logging.
 2. P1: `window list` trên FC Online, xác minh class/process thực tế.
 3. P2: pixel read trước (read-only), sau đó click trên fixture, cuối cùng click trên FC Online.
-4. P3: scan memory trên fixture, sau đó FC Online ở lobby.
-5. P4: GUI.
-6. P5: chạy checklist mục 7, lưu biên bản.
-7. P6: đóng gói + tài liệu.
+4. P3: code/test ở branch `feat/gameprobe-p3`; dừng trên FC Online vì Win32 5.
+5. P5.1: `region capture` → `region stability` → dry-run live → `--confirm-buy`.
+6. P4: GUI.
+7. P5: chạy checklist mục 7, lưu biên bản.
+8. P6: đóng gói + tài liệu.
 
 **Nguyên tắc:** mỗi phase phải có bằng chứng test trước khi sang phase sau; không thêm tính năng mới khi checklist của phase hiện tại chưa đạt.

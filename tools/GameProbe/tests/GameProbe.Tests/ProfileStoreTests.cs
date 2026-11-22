@@ -23,8 +23,10 @@ public sealed class ProfileStoreTests
 
         Assert.True(validation.IsValid, string.Join("; ", validation.Errors));
         Assert.Equal("FC Online", profile.Name);
-        Assert.Equal(3, profile.ClickPoints.Count);
-        Assert.Equal(2, profile.PixelProbes.Count);
+        Assert.Equal(7, profile.ClickPoints.Count);
+        Assert.Equal(4, profile.PixelProbes.Count);
+        Assert.Single(profile.Regions);
+        Assert.NotNull(profile.PriceRefresh);
         Assert.Equal(Anchor.Center, profile.ClickPoints[1].X.Anchor);
         Assert.Equal(30, profile.ClickPoints[1].X.Offset);
         Assert.Equal(Anchor.Bottom, profile.ClickPoints[1].Y.Anchor);
@@ -63,6 +65,11 @@ public sealed class ProfileStoreTests
             Assert.Equal(profile.SchemaVersion, loaded.SchemaVersion);
             Assert.Equal(profile.ClickPoints.Count, loaded.ClickPoints.Count);
             Assert.Equal(profile.PixelProbes.Count, loaded.PixelProbes.Count);
+            Assert.Equal(profile.Regions.Count, loaded.Regions.Count);
+            Assert.NotNull(loaded.PriceRefresh);
+            Assert.Equal(
+                profile.PriceRefresh!.PopupProbeId,
+                loaded.PriceRefresh!.PopupProbeId);
             Assert.Equal(profile.ClickPoints[1].X.Offset, loaded.ClickPoints[1].X.Offset);
             Assert.Equal(profile.Hotkeys.Panic, loaded.Hotkeys.Panic);
         }

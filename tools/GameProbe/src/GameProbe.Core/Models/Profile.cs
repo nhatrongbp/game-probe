@@ -14,6 +14,11 @@ public sealed class Profile
 
     public List<PixelProbeSpec> PixelProbes { get; set; } = new();
 
+    public List<RegionSpec> Regions { get; set; } = new();
+
+    /// <summary>Optional hardcoded-coordinate price refresh scenario configuration.</summary>
+    public PriceRefreshOptions? PriceRefresh { get; set; }
+
     public MemoryOptions Memory { get; set; } = new();
 
     public HotkeyOptions Hotkeys { get; set; } = new();

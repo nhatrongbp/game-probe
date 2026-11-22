@@ -140,6 +140,39 @@ internal static class Program
             case "capture":
                 return Commands.CaptureCommand.Execute(args.Skip(1).ToArray(), logger);
 
+            case "region":
+                if (args.Length < 2
+                    || args[1].Equals("--help", StringComparison.OrdinalIgnoreCase)
+                    || args[1].Equals("-h", StringComparison.OrdinalIgnoreCase))
+                {
+                    HelpText.PrintRegionCommands();
+                    return args.Length < 2 ? ExitCodes.Usage : ExitCodes.Success;
+                }
+
+                return args[1].ToLowerInvariant() switch
+                {
+                    "capture" => Commands.RegionCaptureCommand.Execute(
+                        args.Skip(2).ToArray(),
+                        logger),
+                    "stability" => Commands.RegionStabilityCommand.Execute(
+                        args.Skip(2).ToArray(),
+                        logger),
+                    _ => UnknownRegionCommand(args[1])
+                };
+
+            case "scenario":
+                if (args.Length >= 2
+                    && args[1].Equals("price-refresh", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Commands.PriceRefreshCommand.Execute(
+                        args.Skip(2).ToArray(),
+                        logger);
+                }
+
+                Console.Error.WriteLine("Thiếu lệnh con. Dùng: gameprobe scenario price-refresh --profile <path>");
+                HelpText.PrintPriceRefresh();
+                return ExitCodes.Usage;
+
             case "pixel":
                 if (args.Length >= 2 && args[1].Equals("watch", StringComparison.OrdinalIgnoreCase))
                 {
@@ -159,6 +192,13 @@ internal static class Program
     {
         Console.Error.WriteLine($"Lệnh window không hợp lệ: {command}");
         HelpText.PrintWindowCommands();
+        return ExitCodes.Usage;
+    }
+
+    private static int UnknownRegionCommand(string command)
+    {
+        Console.Error.WriteLine($"Lệnh region không hợp lệ: {command}");
+        HelpText.PrintRegionCommands();
         return ExitCodes.Usage;
     }
 

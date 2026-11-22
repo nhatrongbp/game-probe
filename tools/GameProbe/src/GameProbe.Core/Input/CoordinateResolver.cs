@@ -38,6 +38,13 @@ public static class CoordinateResolver
         return Resolve(probe.X, probe.Y, window.ClientWidth, window.ClientHeight);
     }
 
+    public static ResolvedPoint Resolve(RegionSpec region, WindowInfo window)
+    {
+        ArgumentNullException.ThrowIfNull(region);
+        ArgumentNullException.ThrowIfNull(window);
+        return Resolve(region.X, region.Y, window.ClientWidth, window.ClientHeight);
+    }
+
     public static ResolvedPoint FromRaw(
         double rawX,
         double rawY,

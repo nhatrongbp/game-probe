@@ -21,10 +21,13 @@ internal static class HelpText
               pixel --profile <path> --probe <id> [--json]
               pixel --x <x> --y <y> [target options] [--json]
               pixel watch ...                 Theo dõi màu pixel
+              region capture ...              Chụp vùng client ra BMP
+              region stability ...            Kiểm tra vùng có ổn định pixel
+              scenario price-refresh ...      Kịch bản làm mới giá mua cầu thủ
               help                             Hiển thị trợ giúp
               --version                        Hiển thị phiên bản
 
-            TARGET OPTIONS (dùng cho click/pixel/capture):
+            TARGET OPTIONS (dùng cho click/pixel/capture/region/scenario):
               --profile <path>     Dùng target trong profile JSON
               --hwnd <hex>         Chỉ định HWND
               --pid <pid>          Lọc theo process id
@@ -39,6 +42,8 @@ internal static class HelpText
               gameprobe click --profile profiles/fc-online.json --point play --dry-run
               gameprobe pixel --profile profiles/fc-online.json --probe play-color
               gameprobe capture --class FIFAKC --timeout 30 --json
+              gameprobe region capture --profile profiles/fc-online.json --region buy-dialog-max-price --out price.bmp
+              gameprobe scenario price-refresh --profile profiles/fc-online.json --dry-run
 
             LƯU Ý:
               - Chỉ dùng cho nghiên cứu trên account test.
@@ -226,6 +231,130 @@ internal static class HelpText
             TARGET OPTIONS:
               --hwnd <hex>, --pid <pid>, --class <name>, --process <name>, --title <text>,
               --include-hidden
+            """);
+    }
+
+    public static void PrintRegionCommands()
+    {
+        Console.WriteLine(
+            """
+            CÁCH DÙNG:
+              gameprobe region capture [options]
+              gameprobe region stability [options]
+
+            COMMAND:
+              capture    Chụp một vùng client ra file BMP
+              stability  Chụp lặp N lần và so sánh pixel với frame đầu
+
+            OPTIONS:
+              --profile <path>   Profile JSON (bắt buộc khi dùng --region)
+              --region <id>      Region ID trong profile
+              --x <x>            Client X (khi không dùng --region)
+              --y <y>            Client Y (khi không dùng --region)
+              --width <px>       Chiều rộng vùng
+              --height <px>      Chiều cao vùng
+              --out, -o <path>   File BMP đầu ra
+              --count <n>        Số frame (stability, mặc định 10)
+              --interval <ms>    Khoảng cách frame (stability, mặc định 200)
+              --json             Xuất JSON
+              -h, --help         Hiển thị trợ giúp
+
+            TARGET OPTIONS:
+              --hwnd <hex>, --pid <pid>, --class <name>, --process <name>, --title <text>,
+              --include-hidden
+            """);
+    }
+
+    public static void PrintRegionCapture()
+    {
+        Console.WriteLine(
+            """
+            CÁCH DÙNG:
+              gameprobe region capture --profile <path> --region <id> [options]
+              gameprobe region capture --x <x> --y <y> --width <px> --height <px> [target options] [options]
+
+            MÔ TẢ:
+              Chụp vùng client-area bằng BitBlt + GetDIBits, lưu BMP để kiểm tra
+              tọa độ/crop. Không click, không đọc memory.
+
+            OPTIONS:
+              --profile <path>   Profile JSON
+              --region <id>      Region ID trong profile
+              --x, --y           Góc trên-trái (client coordinates)
+              --width, --height  Kích thước vùng
+              --out, -o <path>   File BMP (mặc định %LocalAppData%\GameProbe\captures)
+              --json             Xuất JSON
+              -h, --help         Hiển thị trợ giúp
+
+            TARGET OPTIONS:
+              --hwnd <hex>, --pid <pid>, --class <name>, --process <name>, --title <text>,
+              --include-hidden
+            """);
+    }
+
+    public static void PrintRegionStability()
+    {
+        Console.WriteLine(
+            """
+            CÁCH DÙNG:
+              gameprobe region stability --profile <path> --region <id> [options]
+              gameprobe region stability --x <x> --y <y> --width <px> --height <px> [target options] [options]
+
+            MÔ TẢ:
+              Chụp vùng N lần, so sánh từng frame với frame đầu. Dùng để kiểm tra
+              vùng giá có "giống hệt pixel" khi nội dung không đổi hay không.
+
+            OPTIONS:
+              --profile <path>   Profile JSON
+              --region <id>      Region ID trong profile
+              --x, --y           Góc trên-trái (client coordinates)
+              --width, --height  Kích thước vùng
+              --count <n>        Số frame 1..1000 (mặc định 10)
+              --interval <ms>    Khoảng cách frame (mặc định 200)
+              --out, -o <path>   Lưu frame đầu ra BMP
+              --json             Xuất JSON
+              -h, --help         Hiển thị trợ giúp
+
+            TARGET OPTIONS:
+              --hwnd <hex>, --pid <pid>, --class <name>, --process <name>, --title <text>,
+              --include-hidden
+            """);
+    }
+
+    public static void PrintPriceRefresh()
+    {
+        Console.WriteLine(
+            """
+            CÁCH DÙNG:
+              gameprobe scenario price-refresh --profile <path> [options]
+
+            MÔ TẢ:
+              Kịch bản hardcode tọa độ:
+                1. Click "Đăng ký lại" (hàng 1).
+                2. Chờ pixel đỏ của nút "Mua cầu thủ" xuất hiện.
+                3. Lần đầu: chụp vùng "Giá tối đa", rồi Huỷ.
+                4. Các lần sau: nếu vùng giá giống hệt baseline thì Huỷ và lặp;
+                   nếu khác thì click giá mới rồi click "Mua cầu thủ" và kết thúc.
+              Không OCR, không đọc memory game.
+
+            OPTIONS:
+              --profile <path>   Profile JSON có cấu hình priceRefresh (bắt buộc)
+              --dry-run          Chạy đến khi phát hiện giá đổi nhưng không mua (mặc định)
+              --confirm-buy      Cho phép click giá mới + Mua cầu thủ
+              --max-attempts <n> Ghi đè số lần mở popup tối đa
+              --delay <ms>       Ghi đè delay giữa các lần Huỷ → Đăng ký lại
+              --start-delay <ms> Ghi đè delay trước khi bắt đầu (mặc định 3000)
+              --out-dir <path>   Thư mục lưu baseline.bmp/current.bmp
+              --json             Xuất JSON
+              -h, --help         Hiển thị trợ giúp
+
+            TARGET OPTIONS:
+              --hwnd <hex>, --pid <pid>, --class <name>, --process <name>, --title <text>,
+              --include-hidden
+
+            LƯU Ý:
+              - Chạy dry-run trước để xác nhận vùng giá không bị false positive.
+              - Chỉ dùng account test; dừng nếu game/anti-cheat có dấu hiệu bất thường.
             """);
     }
 }

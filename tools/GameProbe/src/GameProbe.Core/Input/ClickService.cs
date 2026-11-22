@@ -5,7 +5,7 @@ using GameProbe.Core.Windows;
 
 namespace GameProbe.Core.Input;
 
-public sealed class ClickService
+public sealed class ClickService : IClickExecutor
 {
     private readonly IActionLogger _logger;
     private readonly IWindowMessageTransport _transport;

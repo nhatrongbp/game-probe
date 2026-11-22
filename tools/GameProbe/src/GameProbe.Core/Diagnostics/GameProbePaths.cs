@@ -16,6 +16,8 @@ public static class GameProbePaths
 
     public static string SnapshotsDirectory => Path.Combine(LocalDataRoot, "snapshots");
 
+    public static string CapturesDirectory => Path.Combine(LocalDataRoot, "captures");
+
     public static string GetDefaultLogFilePath(DateTimeOffset? timestamp = null)
     {
         var local = (timestamp ?? DateTimeOffset.Now).ToLocalTime();
@@ -29,5 +31,6 @@ public static class GameProbePaths
         Directory.CreateDirectory(LocalDataRoot);
         Directory.CreateDirectory(LogsDirectory);
         Directory.CreateDirectory(SnapshotsDirectory);
+        Directory.CreateDirectory(CapturesDirectory);
     }
 }

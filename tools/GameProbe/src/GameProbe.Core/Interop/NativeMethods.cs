@@ -100,6 +100,13 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool ScreenToClient(IntPtr hWnd, ref NativePoint lpPoint);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ClientToScreen(IntPtr hWnd, ref NativePoint lpPoint);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr WindowFromPoint(NativePoint point);
+
     [DllImport("user32.dll")]
     internal static extern short GetAsyncKeyState(int vKey);
 

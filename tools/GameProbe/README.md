@@ -2,13 +2,16 @@
 
 Công cụ nghiên cứu automation cửa sổ game trên Windows:
 - click tại tọa độ cấu hình sẵn bằng window message;
-- đọc/đoán màu một pixel;
-- đọc text từ memory game, snapshot và diff.
+- đọc màu một pixel / chụp và so sánh vùng ảnh nhỏ;
+- kịch bản làm mới giá mua cầu thủ bằng pixel, không OCR.
 
-> **Cảnh báo:** kỹ thuật gửi window message và đọc memory vào game có thể vi phạm
+> **Cảnh báo:** kỹ thuật gửi window message/automation vào game có thể vi phạm
 > Điều khoản dịch vụ và bị anti-cheat phát hiện. Chỉ dùng cho nghiên cứu, học tập
-> và account test. Tool chỉ đọc memory, không ghi, không inject, không bypass
-> anti-cheat. Không dùng để gian lận.
+> và account test. Không dùng để gian lận.
+
+> **P3 memory text** nằm ở branch riêng `feat/gameprobe-p3`, không merge vào `main`:
+> anti-cheat FC Online chặn `ReadProcessMemory` (Win32 5), nên hướng chính trên
+> `main` là pixel/region.
 
 Kế hoạch đầy đủ: [`../../docs/gameprobe-implementation-plan.md`](../../docs/gameprobe-implementation-plan.md)
 
@@ -18,6 +21,11 @@ Kế hoạch đầy đủ: [`../../docs/gameprobe-implementation-plan.md`](../..
 
 **P2 — Click & pixel — đã xong.** Fixture pixel/click/watch pass; FC Online pixel pass;
 click `missions-new` bằng CLI elevated đã làm mới UI game thành công.
+
+**P5.1 — Kịch bản làm mới giá mua cầu thủ — đã implement, chờ test live.**
+Dùng vùng pixel nhỏ quanh `Giá tối đa`; lần đầu lưu baseline, các lần sau so sánh;
+khác baseline thì click giá mới + `Mua cầu thủ`. Mặc định dry-run, chỉ mua khi
+có `--confirm-buy`. Code + unit test đã xong; chưa chạy live trên game.
 
 Đã có:
 
@@ -38,6 +46,11 @@ click `missions-new` bằng CLI elevated đã làm mới UI game thành công.
 - phân loại màu FFZik 0..3, tolerance, expected class/RGB;
 - `PixelWatcher` poll tối thiểu 50 ms, chỉ báo khi màu/class đổi;
 - CLI `click`, `capture`, `pixel`, `pixel watch` (JSON/JSONL);
+- `RegionResolver`, `GdiRegionSource` (BitBlt + desktop fallback), `RegionComparer`;
+- `BmpWriter` lưu vùng chụp ra BMP để hiệu chỉnh tọa độ;
+- CLI `region capture`, `region stability`;
+- `PriceRefreshScenario` + CLI `scenario price-refresh` (dry-run/confirm-buy);
+- profile `fc-online.json` có click points, probe, region và `priceRefresh`;
 - fixture `GameProbe.TestTarget` vẽ lưới 6×4 màu, ô TOGGLE và log mouse message ra UI + file;
 - profile `profiles/test-target.json` cho fixture.
 
@@ -60,10 +73,13 @@ Window rect lớn hơn client size do viền/title bar; click/pixel dùng client
 ### Đã kiểm tra tự động
 
 - `dotnet build -c Release`: 0 warning, 0 error.
-- `dotnet test -c Release`: **88/88 pass**.
+- `dotnet test -c Release`: **114/114 pass**.
 - Bao gồm: coordinate math, color classify, click message mapping, ClickService với fake transport,
   PixelProbe/PixelWatcher với fake source, GDI extraction trên memory DC,
-  PostMessage/SendMessage trên hidden window, profile fixture.
+  PostMessage/SendMessage trên hidden window, profile fixture;
+  region comparer (exact/tolerance/minChangedPixels/alpha), GDI region extraction,
+  region resolver, BMP writer, price-refresh state machine (dry-run/buy/same/timeout/guard)
+  và profile validation cho `priceRefresh`.
 
 **Bằng chứng fixture (2026-11-22):**
 
@@ -82,13 +98,17 @@ Window rect lớn hơn client size do viền/title bar; click/pixel dùng client
   (UIPI). Click vào game cần CLI Administrator; nếu elevated vẫn lỗi thì
   game/anti-cheat chặn message, không bypass.
 
-### Việc còn lại cho P5
+### Việc còn lại cho P5.1/P5
 
+- Chạy `region capture` + `region stability` trên FC Online để xác nhận tọa độ
+  và exact match (popup đang mở).
+- Chạy `scenario price-refresh --dry-run` 5–10 lần; nếu false positive thì
+  tăng `minChangedPixels`/`channelTolerance` hoặc chỉnh region.
+- Chỉ chạy `--confirm-buy` sau khi dry-run ổn định.
 - Test nút play ở lobby và DPI 125% (T15) khi hiệu chuẩn profile.
-- Hiệu chỉnh `profiles/fc-online.json` nếu UI game thay đổi.
 
-`sendInput` chưa bật trong P2: profile có `syncMode: sendInput` sẽ bị từ chối rõ ràng.
-Memory scan thuộc P3.
+`sendInput` chưa bật: profile có `syncMode: sendInput` sẽ bị từ chối rõ ràng.
+P3 memory text nằm ở branch riêng, không dùng trên main.
 
 ## Yêu cầu
 
@@ -141,6 +161,18 @@ $gp = "src\GameProbe.Cli\bin\Release\net8.0-windows\gameprobe.exe"
 
 # Capture tọa độ: đưa chuột lên điểm cần lấy rồi nhấn F8
 & $gp capture --class FIFAKC --timeout 30
+
+# P5.1 — chụp thử vùng Giá tối đa ra BMP để kiểm tra crop
+& $gp region capture --profile profiles\fc-online.json --region buy-dialog-max-price --out price.bmp
+
+# Kiểm tra vùng giá có ổn định pixel khi mở popup (chạy khi popup đang mở)
+& $gp region stability --profile profiles\fc-online.json --region buy-dialog-max-price --count 10 --interval 200
+
+# Dry-run: chỉ phát hiện giá đổi, chưa click Mua
+& $gp scenario price-refresh --profile profiles\fc-online.json --dry-run
+
+# Chạy thật sau khi dry-run pass
+& $gp scenario price-refresh --profile profiles\fc-online.json --confirm-buy
 ```
 
 Exit code:
@@ -193,6 +225,64 @@ Fixture ghi mouse message vào cả panel bên phải và file
 `%LocalAppData%\GameProbe\logs\testtarget-mouse.log`, nên có thể gửi log này
 làm bằng chứng kể cả sau khi đóng fixture.
 
+### P5.1 — Kịch bản làm mới giá mua cầu thủ
+
+Mục tiêu: lặp `Đăng ký lại` → popup `Mua cầu thủ` → so vùng `Giá tối đa` với
+baseline lần đầu. Giá chưa đổi thì `Huỷ` và lặp; giá đổi thì click giá mới,
+click `Mua cầu thủ` và kết thúc. Không OCR, không đọc memory game.
+
+Luồng:
+
+1. Guard: đúng client `1280x720`, DPI 96, cửa sổ visible/không minimized;
+   pixel chữ xanh trên nút `Đăng ký lại` phải khớp.
+2. Click `relist` → chờ pixel đỏ của nút `Mua cầu thủ` → chờ popup ổn định
+   (2 frame giống nhau) → chụp baseline vùng giá → click `Huỷ` → chờ popup đóng.
+3. Lặp: click `relist` → chờ popup → chụp stable frame → so baseline.
+   - Giống: `Huỷ`, chờ đóng, delay rồi lặp.
+   - Khác: lưu baseline/current BMP; nếu dry-run thì dừng; nếu `--confirm-buy`
+     thì click vùng giá mới → click `Mua cầu thủ` → kết thúc ngay.
+4. Hết `maxAttempts` → exit code 5, không click mù.
+
+Tọa độ hiện tại trong `profiles/fc-online.json` được suy ra từ ảnh chụp
+1920×1080, giả định client origin `(8,31)` (khớp với point `missions-new` cũ):
+
+| Mục | Client `(x,y)` | Ghi chú |
+|---|---|---|
+| `relist` | `(991,181)` | tâm nút `Đăng ký lại` hàng 1 |
+| `relist-guard` | `(972,181)` | chữ xanh `#08F368`, tolerance 24 |
+| `buy-dialog-red` | `(792,574)` | `#ED4428`; khi popup đóng là `#2C392B` |
+| `buy-dialog-max-price` | `(942,285)` `96×26` | vùng crop `Giá tối đa` |
+| `price-value` | `(1022,299)` | click vào giá trị sau khi đổi |
+| `cancel-buy` | `(964,574)` | nút `Huỷ` |
+| `buy` | `(830,574)` | nút `Mua cầu thủ` |
+
+Quy trình kiểm tra trước khi mua thật:
+
+```powershell
+# 1. Mở popup, chụp thử vùng giá và xem BMP
+& $gp region capture --profile profiles\fc-online.json --region buy-dialog-max-price --out price.bmp
+
+# 2. Mở popup, kiểm tra vùng giá có ổn định pixel
+& $gp region stability --profile profiles\fc-online.json --region buy-dialog-max-price --count 10 --interval 200
+
+# 3. Dry-run nhiều lần, xác nhận không có false positive
+& $gp scenario price-refresh --profile profiles\fc-online.json --dry-run
+
+# 4. Chỉ khi dry-run ổn định mới chạy thật
+& $gp scenario price-refresh --profile profiles\fc-online.json --confirm-buy
+```
+
+Lưu ý:
+
+- Nếu window DC trả frame đen, tool fallback sang desktop capture. Khi đó phải
+  giữ cửa sổ game **visible và không bị cửa sổ khác che**; nếu capture method
+  đổi giữa baseline/current, scenario abort để tránh false positive.
+- Exact match mặc định là 1 pixel khác = đổi. Nếu `region stability` báo dao động,
+  tăng `priceRefresh.minChangedPixels` hoặc `channelTolerance` trong profile.
+- `--confirm-buy` mua ngay khi phát hiện khác baseline, kể cả giá giảm; không
+  kiểm tra hướng giá.
+- Sau khi click `Mua cầu thủ`, scenario kết thúc luôn; không chờ dialog xác nhận.
+
 ### Phân loại màu
 
 - `0`: trắng/xám — `R≈G≈B`, `R > 0`
@@ -207,12 +297,13 @@ làm bằng chứng kể cả sau khi đóng fixture.
 ```text
 tools/GameProbe/
 ├─ src/GameProbe.Core/
-│  ├─ Input/       CoordinateResolver, ClickService, CursorCapture
-│  ├─ Capture/     PixelProbe, PixelWatcher, color classifier
+│  ├─ Input/       CoordinateResolver, RegionResolver, ClickService, CursorCapture
+│  ├─ Capture/     PixelProbe, PixelWatcher, GdiRegionSource, RegionComparer
+│  ├─ Scenario/    PriceRefreshScenario
 │  ├─ Interop/     P/Invoke user32/kernel32/gdi32
 │  ├─ Windows/     WindowLocator, GameWindow, monitor
 │  ├─ Profiles/    model/profile store/validator
-│  └─ Diagnostics/ logging, error mapping
+│  └─ Diagnostics/ logging, error mapping, BmpWriter
 ├─ src/GameProbe.Cli/      command line
 ├─ src/GameProbe.App/      WinForms GUI skeleton
 ├─ tests/GameProbe.Tests/  xUnit
@@ -229,25 +320,34 @@ tools/GameProbe/
 | P0 | Khung dự án, profile, logging, CLI/GUI skeleton — **xong** |
 | P1 | Attach cửa sổ, window info, re-attach — **xong** |
 | P2 | CoordinateResolver, ClickService, PixelProbe, CLI click/pixel/capture, fixture — **xong** |
-| P3 | MemoryScanner, TextExtractor, snapshot/diff |
+| P3 | MemoryScanner, TextExtractor, snapshot/diff — **branch `feat/gameprobe-p3`; game bị chặn Win32 5, không merge main** |
 | P4 | GUI đầy đủ, hotkey F8–F12, log viewer |
 | P5 | Test trên FC Online bằng account test |
+| P5.1 | Region capture/comparer + scenario làm mới giá — **code/test xong; chờ dry-run live** |
 | P6 | Đóng gói, tài liệu usage/troubleshooting |
 
-## Giới hạn P2
+## Giới hạn
 
 - `sendInput` chưa bật; chỉ dùng `post`/`send`. Muốn dùng `sendInput` phải bổ sung sau
   với cảnh báo và xác nhận rõ ràng.
 - Click vào game cần CLI chạy **Administrator** (game/Garena thường elevated).
   `PostMessage` trả `Win32 5` là UIPI/anti-cheat chặn; thử elevated trước, không bypass.
 - BitBlt/GetPixel cần cửa sổ **windowed hoặc borderless**; fullscreen exclusive có thể trả đen.
+- Region capture có fallback desktop; khi dùng fallback, cửa sổ game phải visible
+  và không bị che.
 - Pixel watch tối thiểu 50 ms; click sequence cách nhau tối thiểu 20 ms.
-- Tọa độ là client coordinates tại DPI hiện tại; DPI 125% cần test lại (T15).
+- Tọa độ là client coordinates tại DPI hiện tại; DPI/độ phân giải khác cần chỉnh profile.
 - Capture F8 hiện có qua CLI; hotkey toàn cục trong GUI thuộc P4.
+- Scenario chỉ so vùng giá; nếu UI đổi layout/font/scale, phải cập nhật region và
+  chạy lại `region stability` trước khi mua.
+- Không OCR nên không biết giá tăng/giảm; bất kỳ khác baseline nào cũng kích hoạt mua.
+- P3 memory text không có trên `main`; nếu cần xem code, dùng branch
+  `feat/gameprobe-p3`. Không chạy memory scan trên FC Online.
 
 ## Nguyên tắc an toàn
 
-- Chỉ dùng `PROCESS_VM_READ`, không cấp quyền ghi.
-- Không dùng `NtReadVirtualMemory` để lách hook/anti-cheat.
-- Không chạy memory scan khi đang thi đấu; chỉ test ở login/lobby.
+- Tool trên `main` chỉ đọc pixel/region và gửi window message; không đọc/ghi memory,
+  không inject, không bypass anti-cheat.
+- P3 memory (branch riêng) chỉ dùng `PROCESS_VM_READ`; không chạy trên FC Online.
+- Chỉ test trên account phụ; không chạy khi đang thi đấu.
 - Dừng ngay nếu game crash, mất kết nối hoặc anti-cheat cảnh báo.

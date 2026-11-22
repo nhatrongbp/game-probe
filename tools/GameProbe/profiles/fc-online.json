@@ -45,6 +45,58 @@
       "syncMode": "post",
       "hover": true,
       "wParamMode": "button"
+    },
+    {
+      "id": "relist",
+      "name": "Đăng ký lại (hàng 1)",
+      "x": { "mode": "client", "value": 991 },
+      "y": { "mode": "client", "value": 181 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": true,
+      "wParamMode": "button"
+    },
+    {
+      "id": "price-value",
+      "name": "Giá tối đa trong popup",
+      "x": { "mode": "client", "value": 1022 },
+      "y": { "mode": "client", "value": 299 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": false,
+      "wParamMode": "button"
+    },
+    {
+      "id": "cancel-buy",
+      "name": "Huỷ popup Mua cầu thủ",
+      "x": { "mode": "client", "value": 964 },
+      "y": { "mode": "client", "value": 574 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": false,
+      "wParamMode": "button"
+    },
+    {
+      "id": "buy",
+      "name": "Mua cầu thủ",
+      "x": { "mode": "client", "value": 830 },
+      "y": { "mode": "client", "value": 574 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": false,
+      "wParamMode": "button"
     }
   ],
   "pixelProbes": [
@@ -67,8 +119,60 @@
       "expectedRgb": "#07F468",
       "tolerance": 8,
       "watchIntervalMs": 200
+    },
+    {
+      "id": "relist-guard",
+      "name": "Guard nút Đăng ký lại (chữ xanh)",
+      "x": { "mode": "client", "value": 972 },
+      "y": { "mode": "client", "value": 181 },
+      "expectedRgb": "#08F368",
+      "tolerance": 24,
+      "watchIntervalMs": 200
+    },
+    {
+      "id": "buy-dialog-red",
+      "name": "Popup Mua cầu thủ đang mở (nút đỏ)",
+      "x": { "mode": "client", "value": 792 },
+      "y": { "mode": "client", "value": 574 },
+      "expectedRgb": "#ED4428",
+      "tolerance": 16,
+      "watchIntervalMs": 100
     }
   ],
+  "regions": [
+    {
+      "id": "buy-dialog-max-price",
+      "name": "Giá tối đa trong popup",
+      "x": { "mode": "client", "value": 942 },
+      "y": { "mode": "client", "value": 285 },
+      "width": 96,
+      "height": 26
+    }
+  ],
+  "priceRefresh": {
+    "relistPointId": "relist",
+    "relistGuardProbeId": "relist-guard",
+    "popupProbeId": "buy-dialog-red",
+    "priceRegionId": "buy-dialog-max-price",
+    "pricePointId": "price-value",
+    "cancelPointId": "cancel-buy",
+    "buyPointId": "buy",
+    "startDelayMs": 3000,
+    "settleMs": 350,
+    "stableFrameGapMs": 120,
+    "stableTimeoutMs": 1500,
+    "pollIntervalMs": 100,
+    "popupTimeoutMs": 3000,
+    "closeTimeoutMs": 3000,
+    "attemptDelayMs": 800,
+    "maxAttempts": 40,
+    "priceClickDelayMs": 200,
+    "channelTolerance": 0,
+    "minChangedPixels": 1,
+    "expectedClientWidth": 1280,
+    "expectedClientHeight": 720,
+    "expectedDpi": 96
+  },
   "memory": {
     "minLength": 4,
     "encodings": ["utf16le", "utf8"],
