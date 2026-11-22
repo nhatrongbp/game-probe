@@ -51,6 +51,20 @@ public sealed class PriceRefreshProfileTests
     }
 
     [Fact]
+    public void ZeroGuardTimeout_ShouldFail()
+    {
+        var profile = new ProfileStore().Load(SampleProfilePath);
+        profile.PriceRefresh!.RelistGuardTimeoutMs = 0;
+
+        var result = ProfileValidator.Validate(profile);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains("relistGuardTimeoutMs", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void DuplicateRegionId_ShouldFail()
     {
         var profile = new ProfileStore().Load(SampleProfilePath);

@@ -97,7 +97,7 @@ public sealed class PriceRefreshScenario
             }
 
             PrepareWindow(window, options, expectedPid);
-            CheckRelistGuard(window, guardProbe, cancellationToken);
+            CheckRelistGuard(window, relist, guardProbe, options, cancellationToken);
 
             _logger.Info(
                 "price.start",
@@ -142,7 +142,7 @@ public sealed class PriceRefreshScenario
 
                 _sleeper.Sleep(options.AttemptDelayMs, cancellationToken);
                 PrepareWindow(window, options, expectedPid);
-                CheckRelistGuard(window, guardProbe, cancellationToken);
+                CheckRelistGuard(window, relist, guardProbe, options, cancellationToken);
 
                 Click(window, relist, cancellationToken);
                 attempts = attempt;
@@ -374,7 +374,9 @@ public sealed class PriceRefreshScenario
 
     private void CheckRelistGuard(
         GameWindow window,
+        ClickPoint relist,
         PixelProbeSpec? guardProbe,
+        PriceRefreshOptions options,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -384,17 +386,34 @@ public sealed class PriceRefreshScenario
             return;
         }
 
-        var result = _pixel.Read(window, guardProbe);
-        if (result.MatchesExpectedRgb == true)
-        {
-            return;
-        }
+        // The green "Đăng ký lại" text is rendered only while the row is
+        // hovered. Send a hover pulse before reading the guard, otherwise a
+        // headless run (real cursor elsewhere) always sees the dark background.
+        _click.Hover(window, relist, cancellationToken);
 
-        throw new GameProbeException(
-            GameProbeErrorKind.InvalidConfiguration,
-            $"Guard '{guardProbe.Id}' không khớp tại ({result.X},{result.Y}): " +
-            $"đọc được {result.Hex}, kỳ vọng {guardProbe.ExpectedRgb}. " +
-            "Có thể hàng 'Đăng ký lại' đã đổi hoặc màn hình không phải TTCT.");
+        var stopwatch = Stopwatch.StartNew();
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var result = _pixel.Read(window, guardProbe);
+            if (result.MatchesExpectedRgb == true)
+            {
+                return;
+            }
+
+            if (stopwatch.ElapsedMilliseconds >= options.RelistGuardTimeoutMs)
+            {
+                throw new GameProbeException(
+                    GameProbeErrorKind.InvalidConfiguration,
+                    $"Guard '{guardProbe.Id}' không khớp tại ({result.X},{result.Y}) sau " +
+                    $"{options.RelistGuardTimeoutMs} ms kể từ hover: " +
+                    $"đọc được {result.Hex}, kỳ vọng {guardProbe.ExpectedRgb}. " +
+                    "Có thể hàng 'Đăng ký lại' đã đổi hoặc màn hình không phải TTCT.");
+            }
+
+            _sleeper.Sleep(options.PollIntervalMs, cancellationToken);
+        }
     }
 
     private bool IsPopupOpen(GameWindow window, PixelProbeSpec popupProbe)

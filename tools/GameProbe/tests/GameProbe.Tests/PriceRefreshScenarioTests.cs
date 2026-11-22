@@ -19,6 +19,7 @@ public sealed class PriceRefreshScenarioTests
         Assert.Equal(PriceRefreshOutcome.DryRunChanged, result.Outcome);
         Assert.Equal(2, result.Attempts);
         Assert.Equal(new[] { "relist", "cancel", "relist" }, state.ClickedPoints);
+        Assert.Equal(new[] { "relist", "relist" }, state.HoveredPoints);
         Assert.False(state.Bought);
         Assert.NotNull(result.Baseline);
         Assert.NotNull(result.LastCurrent);
@@ -50,6 +51,7 @@ public sealed class PriceRefreshScenarioTests
         Assert.Equal(
             new[] { "relist", "cancel", "relist", "cancel", "relist", "cancel" },
             state.ClickedPoints);
+        Assert.Equal(new[] { "relist", "relist", "relist" }, state.HoveredPoints);
         Assert.False(state.Bought);
     }
 
@@ -63,6 +65,7 @@ public sealed class PriceRefreshScenarioTests
 
         Assert.Equal(GameProbeErrorKind.Timeout, exception.Kind);
         Assert.Equal(new[] { "relist" }, state.ClickedPoints);
+        Assert.Equal(new[] { "relist" }, state.HoveredPoints);
     }
 
     [Fact]
@@ -75,6 +78,7 @@ public sealed class PriceRefreshScenarioTests
 
         Assert.Equal(GameProbeErrorKind.InvalidConfiguration, exception.Kind);
         Assert.Empty(state.ClickedPoints);
+        Assert.Equal(new[] { "relist" }, state.HoveredPoints);
     }
 
     [Fact]
@@ -87,6 +91,18 @@ public sealed class PriceRefreshScenarioTests
         Assert.Equal(
             new[] { "cancel", "relist", "cancel", "relist" },
             state.ClickedPoints);
+        Assert.Equal(new[] { "relist", "relist" }, state.HoveredPoints);
+    }
+
+    [Fact]
+    public void GuardTurnsGreenAfterHover_Proceeds()
+    {
+        var state = new FakeState { ChangeOnOpen = 2, GuardGreenAfterReads = 2 };
+        var result = Run(state, confirmBuy: false, maxAttempts: 5);
+
+        Assert.Equal(PriceRefreshOutcome.DryRunChanged, result.Outcome);
+        Assert.Equal(2, result.Attempts);
+        Assert.Equal(new[] { "relist", "relist" }, state.HoveredPoints);
     }
 
     [Fact]
@@ -183,6 +199,7 @@ public sealed class PriceRefreshScenarioTests
                 StableTimeoutMs = 500,
                 PollIntervalMs = 20,
                 PopupTimeoutMs = 100,
+                RelistGuardTimeoutMs = 100,
                 CloseTimeoutMs = 200,
                 AttemptDelayMs = 0,
                 MaxAttempts = maxAttempts,
@@ -213,7 +230,10 @@ public sealed class PriceRefreshScenarioTests
         public bool RegionBlank;
         public int OpenCount;
         public int ChangeOnOpen = int.MaxValue;
+        public int GuardReadCount;
+        public int GuardGreenAfterReads;
         public List<string> ClickedPoints { get; } = new();
+        public List<string> HoveredPoints { get; } = new();
     }
 
     private sealed class FakeClickExecutor : IClickExecutor
@@ -255,6 +275,15 @@ public sealed class PriceRefreshScenarioTests
 
             return new ClickExecutionResult(0, 0, 1, TimeSpan.Zero);
         }
+
+        public HoverExecutionResult Hover(
+            GameWindow window,
+            ClickPoint point,
+            CancellationToken cancellationToken = default)
+        {
+            _state.HoveredPoints.Add(point.Id);
+            return new HoverExecutionResult(0, 0, TimeSpan.Zero);
+        }
     }
 
     private sealed class FakePixelReader : IPixelReader
@@ -275,7 +304,10 @@ public sealed class PriceRefreshScenarioTests
         {
             if (probe.Id == "guard")
             {
-                return CreateResult(probe, _state.GuardMatches ? Green : Gray, _state.GuardMatches);
+                _state.GuardReadCount++;
+                var matches = _state.GuardMatches
+                    && _state.GuardReadCount > _state.GuardGreenAfterReads;
+                return CreateResult(probe, matches ? Green : Gray, matches);
             }
 
             return CreateResult(probe, _state.PopupOpen ? Red : Dark, _state.PopupOpen);

@@ -64,6 +64,20 @@ public sealed class ProfileValidatorTests
     }
 
     [Fact]
+    public void NegativeHoverSettleMs_ShouldFail()
+    {
+        var profile = LoadSample();
+        profile.ClickPoints[0].HoverSettleMs = -1;
+
+        var result = ProfileValidator.Validate(profile);
+
+        Assert.False(result.IsValid);
+        Assert.Contains(
+            result.Errors,
+            error => error.Contains("hoverSettleMs", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void UnknownEncoding_ShouldFail()
     {
         var profile = LoadSample();

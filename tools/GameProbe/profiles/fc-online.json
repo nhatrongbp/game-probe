@@ -57,6 +57,7 @@
       "intervalMs": 200,
       "syncMode": "post",
       "hover": true,
+      "hoverSettleMs": 250,
       "wParamMode": "button"
     },
     {
@@ -152,6 +153,7 @@
   "priceRefresh": {
     "relistPointId": "relist",
     "relistGuardProbeId": "relist-guard",
+    "relistGuardTimeoutMs": 1000,
     "popupProbeId": "buy-dialog-red",
     "priceRegionId": "buy-dialog-max-price",
     "pricePointId": "price-value",

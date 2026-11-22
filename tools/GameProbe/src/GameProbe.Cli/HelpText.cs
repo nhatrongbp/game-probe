@@ -141,12 +141,14 @@ internal static class HelpText
               --include-hidden   Cho phép khớp cửa sổ hidden
               --dry-run          Chỉ resolve tọa độ, không gửi message
               --no-hover         Không gửi WM_MOUSEMOVE trước khi click
+              --hover-only       Chỉ gửi WM_MOUSEMOVE rồi chờ hoverSettleMs, không click
               --json             Xuất JSON
               -h, --help         Hiển thị trợ giúp
 
             GHI CHÚ:
               - Chỉ hỗ trợ syncMode post/send trong P2; sendInput bị từ chối.
               - Mỗi sequence cách nhau tối thiểu 20 ms; count/interval lấy từ profile.
+              - --hover-only hữu ích để kiểm tra UI có nhận hover giả lập không.
               - Click vào game cần PowerShell Administrator; process thường bị UIPI chặn (Win32 5).
             """);
     }
@@ -353,6 +355,8 @@ internal static class HelpText
               --include-hidden
 
             LƯU Ý:
+              - Guard 'relist-guard' được đọc sau khi gửi hover pulse; chờ tối đa
+                relistGuardTimeoutMs để chữ xanh hiện ra.
               - Chạy dry-run trước để xác nhận vùng giá không bị false positive.
               - Chỉ dùng account test; dừng nếu game/anti-cheat có dấu hiệu bất thường.
             """);

@@ -30,6 +30,7 @@ internal static class ClickCommand
         var json = false;
         var dryRun = false;
         var noHover = false;
+        var hoverOnly = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -62,6 +63,10 @@ internal static class ClickCommand
                     noHover = true;
                     break;
 
+                case "--hover-only":
+                    hoverOnly = true;
+                    break;
+
                 default:
                     throw new CliUsageException($"Option không hợp lệ: {args[i]}");
             }
@@ -75,6 +80,16 @@ internal static class ClickCommand
         if (string.IsNullOrWhiteSpace(pointId))
         {
             throw new CliUsageException("Thiếu --point <id>.");
+        }
+
+        if (hoverOnly && dryRun)
+        {
+            throw new CliUsageException("Không dùng --hover-only cùng lúc với --dry-run.");
+        }
+
+        if (hoverOnly && noHover)
+        {
+            throw new CliUsageException("Không dùng --hover-only cùng lúc với --no-hover.");
         }
 
         var profile = new ProfileStore().Load(target.ProfilePath);
@@ -130,6 +145,15 @@ internal static class ClickCommand
         }
 
         using var cancellation = new ConsoleCancellation();
+
+        if (hoverOnly)
+        {
+            var hoverService = new ClickService(logger);
+            var hoverResult = hoverService.Hover(window, point, cancellation.Token);
+            WriteHoverOutput(window.Info, point, hoverResult, json);
+            return ExitCodes.Success;
+        }
+
         var service = new ClickService(logger);
         var result = service.Click(window, point, cancellation.Token);
 
@@ -210,6 +234,53 @@ internal static class ClickCommand
         }
     }
 
+    private static void WriteHoverOutput(
+        WindowInfo info,
+        ClickPoint point,
+        HoverExecutionResult result,
+        bool json)
+    {
+        if (json)
+        {
+            var output = new HoverOutput(
+                info.HandleHex,
+                info.ProcessId,
+                info.ProcessName,
+                info.Title,
+                info.ClientWidth,
+                info.ClientHeight,
+                new ClickPointOutput(
+                    point.Id,
+                    point.Name,
+                    FormatHelpers.DescribeCoordinate(point.X),
+                    FormatHelpers.DescribeCoordinate(point.Y),
+                    point.Button.ToString().ToLowerInvariant(),
+                    point.Count,
+                    point.SyncMode.ToString().ToLowerInvariant(),
+                    point.Hover,
+                    point.WParamMode.ToString().ToLowerInvariant()),
+                result.X,
+                result.Y,
+                point.HoverSettleMs,
+                Math.Round(result.Duration.TotalMilliseconds, 1));
+
+            Console.WriteLine(JsonSerializer.Serialize(output, CommandJson.Pretty));
+            return;
+        }
+
+        Console.WriteLine($"Hover OK — point '{point.Id}' ({point.Name})");
+        Console.WriteLine($"  Window:      {info.HandleHex} pid {info.ProcessId} {info.ProcessName}");
+        Console.WriteLine($"  Client:      {info.ClientSizeText}");
+        Console.WriteLine(
+            $"  Configured:  x={FormatHelpers.DescribeCoordinate(point.X)}, " +
+            $"y={FormatHelpers.DescribeCoordinate(point.Y)}");
+        Console.WriteLine($"  Resolved:    ({result.X}, {result.Y})");
+        Console.WriteLine(
+            $"  Sent:        WM_MOUSEMOVE, mode={point.SyncMode.ToString().ToLowerInvariant()}");
+        Console.WriteLine($"  Settle:      {point.HoverSettleMs} ms");
+        Console.WriteLine($"  Duration:    {result.Duration.TotalMilliseconds:0.0} ms");
+    }
+
     private static string YesNo(bool value) => value ? "yes" : "no";
 
     private static string RequireValue(string[] args, ref int index, string option)
@@ -246,4 +317,17 @@ internal sealed record ClickOutput(
     int Y,
     bool DryRun,
     int SentClicks,
+    double DurationMs);
+
+internal sealed record HoverOutput(
+    string Hwnd,
+    uint Pid,
+    string Process,
+    string Title,
+    int ClientWidth,
+    int ClientHeight,
+    ClickPointOutput Point,
+    int X,
+    int Y,
+    int SettleMs,
     double DurationMs);

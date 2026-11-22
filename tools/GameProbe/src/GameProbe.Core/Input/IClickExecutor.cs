@@ -9,4 +9,9 @@ public interface IClickExecutor
         GameWindow window,
         ClickPoint point,
         CancellationToken cancellationToken = default);
+
+    HoverExecutionResult Hover(
+        GameWindow window,
+        ClickPoint point,
+        CancellationToken cancellationToken = default);
 }

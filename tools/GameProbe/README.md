@@ -22,10 +22,13 @@ Kế hoạch đầy đủ: [`../../docs/gameprobe-implementation-plan.md`](../..
 **P2 — Click & pixel — đã xong.** Fixture pixel/click/watch pass; FC Online pixel pass;
 click `missions-new` bằng CLI elevated đã làm mới UI game thành công.
 
-**P5.1 — Kịch bản làm mới giá mua cầu thủ — đã implement, chờ test live.**
+**P5.1 — Kịch bản làm mới giá mua cầu thủ — đã implement + dry-run live pass.**
 Dùng vùng pixel nhỏ quanh `Giá tối đa`; lần đầu lưu baseline, các lần sau so sánh;
 khác baseline thì click giá mới + `Mua cầu thủ`. Mặc định dry-run, chỉ mua khi
-có `--confirm-buy`. Code + unit test đã xong; chưa chạy live trên game.
+có `--confirm-buy`. Đã xác nhận trên UI thật: nút `Đăng ký lại` chỉ hiện khi
+hover; click đầu tiên chỉ bật hover, click thứ hai mới mở popup. Scenario nay
+gửi hover pulse trước guard và trước mỗi click nên chạy được khi chuột thật
+không nằm trên hàng. Chưa chạy `--confirm-buy`.
 
 Đã có:
 
@@ -73,7 +76,7 @@ Window rect lớn hơn client size do viền/title bar; click/pixel dùng client
 ### Đã kiểm tra tự động
 
 - `dotnet build -c Release`: 0 warning, 0 error.
-- `dotnet test -c Release`: **114/114 pass**.
+- `dotnet test -c Release`: **119/119 pass**.
 - Bao gồm: coordinate math, color classify, click message mapping, ClickService với fake transport,
   PixelProbe/PixelWatcher với fake source, GDI extraction trên memory DC,
   PostMessage/SendMessage trên hidden window, profile fixture;
@@ -100,9 +103,9 @@ Window rect lớn hơn client size do viền/title bar; click/pixel dùng client
 
 ### Việc còn lại cho P5.1/P5
 
-- Chạy `region capture` + `region stability` trên FC Online để xác nhận tọa độ
-  và exact match (popup đang mở).
-- Chạy `scenario price-refresh --dry-run` 5–10 lần; nếu false positive thì
+- Dry-run 5/5 với chuột ngoài hàng đã pass ngày `2026-11-23`: 5 popup, 0 pixel
+  khác baseline, không abort guard.
+- Chạy thêm dry-run 5–10 lần trên nhiều trạng thái UI; nếu false positive thì
   tăng `minChangedPixels`/`channelTolerance` hoặc chỉnh region.
 - Chỉ chạy `--confirm-buy` sau khi dry-run ổn định.
 - Test nút play ở lobby và DPI 125% (T15) khi hiệu chuẩn profile.
@@ -167,6 +170,10 @@ $gp = "src\GameProbe.Cli\bin\Release\net8.0-windows\gameprobe.exe"
 
 # Kiểm tra vùng giá có ổn định pixel khi mở popup (chạy khi popup đang mở)
 & $gp region stability --profile profiles\fc-online.json --region buy-dialog-max-price --count 10 --interval 200
+
+# Kiểm tra hover pulse không click, rồi đọc lại pixel guard
+& $gp click --profile profiles\fc-online.json --point relist --hover-only
+& $gp pixel --profile profiles\fc-online.json --probe relist-guard
 
 # Dry-run: chỉ phát hiện giá đổi, chưa click Mua
 & $gp scenario price-refresh --profile profiles\fc-online.json --dry-run
@@ -233,23 +240,33 @@ click `Mua cầu thủ` và kết thúc. Không OCR, không đọc memory game.
 
 Luồng:
 
-1. Guard: đúng client `1280x720`, DPI 96, cửa sổ visible/không minimized;
-   pixel chữ xanh trên nút `Đăng ký lại` phải khớp.
-2. Click `relist` → chờ pixel đỏ của nút `Mua cầu thủ` → chờ popup ổn định
-   (2 frame giống nhau) → chụp baseline vùng giá → click `Huỷ` → chờ popup đóng.
-3. Lặp: click `relist` → chờ popup → chụp stable frame → so baseline.
+1. Guard: đúng client `1280x720`, DPI 96, cửa sổ visible/không minimized.
+2. Hover pulse vào `relist`: gửi `WM_MOUSEMOVE`, chờ `hoverSettleMs` (250 ms),
+   rồi poll pixel chữ xanh `relist-guard` tối đa `relistGuardTimeoutMs`
+   (1000 ms). Guard phải khớp mới đi tiếp.
+3. Click `relist` (gửi thêm `WM_MOUSEMOVE`, chờ `hoverSettleMs` trước down/up)
+   → chờ pixel đỏ của nút `Mua cầu thủ` → chờ popup ổn định (2 frame giống nhau)
+   → chụp baseline vùng giá → click `Huỷ` → chờ popup đóng.
+4. Lặp: hover pulse lại `relist` → guard → click `relist` → chờ popup → chụp
+   stable frame → so baseline.
    - Giống: `Huỷ`, chờ đóng, delay rồi lặp.
    - Khác: lưu baseline/current BMP; nếu dry-run thì dừng; nếu `--confirm-buy`
      thì click vùng giá mới → click `Mua cầu thủ` → kết thúc ngay.
-4. Hết `maxAttempts` → exit code 5, không click mù.
+5. Hết `maxAttempts` → exit code 5, không click mù.
+
+Lưu ý về hover: nút `Đăng ký lại` chỉ hiện khi hàng được hover. Click đầu tiên
+trên hàng chưa hover chỉ bật hover, **không mở popup**; click thứ hai mới kích
+hoạt nút. Vì vậy scenario luôn hover pulse trước guard và trước click, không
+dựa vào click đầu tiên. Sau khi `Huỷ`, hover bị xoá nếu chuột thật ở nơi khác,
+nên mỗi attempt đều phải hover lại.
 
 Tọa độ hiện tại trong `profiles/fc-online.json` được suy ra từ ảnh chụp
 1920×1080, giả định client origin `(8,31)` (khớp với point `missions-new` cũ):
 
 | Mục | Client `(x,y)` | Ghi chú |
 |---|---|---|
-| `relist` | `(991,181)` | tâm nút `Đăng ký lại` hàng 1 |
-| `relist-guard` | `(972,181)` | chữ xanh `#08F368`, tolerance 24 |
+| `relist` | `(991,181)` | tâm nút `Đăng ký lại` hàng 1; `hoverSettleMs=250` |
+| `relist-guard` | `(972,181)` | chữ xanh `#08F368`, tolerance 24; đọc sau hover |
 | `buy-dialog-red` | `(792,574)` | `#ED4428`; khi popup đóng là `#2C392B` |
 | `buy-dialog-max-price` | `(942,285)` `96×26` | vùng crop `Giá tối đa` |
 | `price-value` | `(1022,299)` | click vào giá trị sau khi đổi |
@@ -279,6 +296,9 @@ Lưu ý:
   đổi giữa baseline/current, scenario abort để tránh false positive.
 - Exact match mặc định là 1 pixel khác = đổi. Nếu `region stability` báo dao động,
   tăng `priceRefresh.minChangedPixels` hoặc `channelTolerance` trong profile.
+- `relistGuardTimeoutMs` quá thấp có thể abort dù UI chỉ chậm vài frame; tăng lên
+  1500–2000 ms nếu máy chậm. `hoverSettleMs` quá thấp có thể làm click đầu tiên
+  chỉ bật hover; giữ 250 ms hoặc tăng nếu UI chậm.
 - `--confirm-buy` mua ngay khi phát hiện khác baseline, kể cả giá giảm; không
   kiểm tra hướng giá.
 - Sau khi click `Mua cầu thủ`, scenario kết thúc luôn; không chờ dialog xác nhận.
@@ -323,7 +343,7 @@ tools/GameProbe/
 | P3 | MemoryScanner, TextExtractor, snapshot/diff — **branch `feat/gameprobe-p3`; game bị chặn Win32 5, không merge main** |
 | P4 | GUI đầy đủ, hotkey F8–F12, log viewer |
 | P5 | Test trên FC Online bằng account test |
-| P5.1 | Region capture/comparer + scenario làm mới giá — **code/test xong; chờ dry-run live** |
+| P5.1 | Region capture/comparer + scenario làm mới giá — **code/test xong; dry-run live 5/5 pass; chờ confirm-buy** |
 | P6 | Đóng gói, tài liệu usage/troubleshooting |
 
 ## Giới hạn
@@ -340,6 +360,8 @@ tools/GameProbe/
 - Capture F8 hiện có qua CLI; hotkey toàn cục trong GUI thuộc P4.
 - Scenario chỉ so vùng giá; nếu UI đổi layout/font/scale, phải cập nhật region và
   chạy lại `region stability` trước khi mua.
+- Guard `relist-guard` phụ thuộc hover: nếu hàng không còn ở trạng thái relist
+  hoặc hover không bật sau `relistGuardTimeoutMs`, scenario abort an toàn.
 - Không OCR nên không biết giá tăng/giảm; bất kỳ khác baseline nào cũng kích hoạt mua.
 - P3 memory text không có trên `main`; nếu cần xem code, dùng branch
   `feat/gameprobe-p3`. Không chạy memory scan trên FC Online.

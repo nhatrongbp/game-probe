@@ -134,7 +134,8 @@ internal static class PriceRefreshCommand
                 ["confirmBuy"] = confirmBuy,
                 ["maxAttempts"] = options.MaxAttempts,
                 ["startDelayMs"] = options.StartDelayMs,
-                ["attemptDelayMs"] = options.AttemptDelayMs
+                ["attemptDelayMs"] = options.AttemptDelayMs,
+                ["relistGuardTimeoutMs"] = options.RelistGuardTimeoutMs
             });
 
         Console.Error.WriteLine(

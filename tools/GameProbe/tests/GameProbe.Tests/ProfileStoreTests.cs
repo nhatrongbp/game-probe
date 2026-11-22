@@ -27,6 +27,8 @@ public sealed class ProfileStoreTests
         Assert.Equal(4, profile.PixelProbes.Count);
         Assert.Single(profile.Regions);
         Assert.NotNull(profile.PriceRefresh);
+        Assert.Equal(250, profile.ClickPoints.First(point => point.Id == "relist").HoverSettleMs);
+        Assert.Equal(1000, profile.PriceRefresh!.RelistGuardTimeoutMs);
         Assert.Equal(Anchor.Center, profile.ClickPoints[1].X.Anchor);
         Assert.Equal(30, profile.ClickPoints[1].X.Offset);
         Assert.Equal(Anchor.Bottom, profile.ClickPoints[1].Y.Anchor);
@@ -70,6 +72,12 @@ public sealed class ProfileStoreTests
             Assert.Equal(
                 profile.PriceRefresh!.PopupProbeId,
                 loaded.PriceRefresh!.PopupProbeId);
+            Assert.Equal(
+                profile.PriceRefresh.RelistGuardTimeoutMs,
+                loaded.PriceRefresh.RelistGuardTimeoutMs);
+            Assert.Equal(
+                profile.ClickPoints.First(point => point.Id == "relist").HoverSettleMs,
+                loaded.ClickPoints.First(point => point.Id == "relist").HoverSettleMs);
             Assert.Equal(profile.ClickPoints[1].X.Offset, loaded.ClickPoints[1].X.Offset);
             Assert.Equal(profile.Hotkeys.Panic, loaded.Hotkeys.Panic);
         }

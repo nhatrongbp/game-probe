@@ -47,35 +47,19 @@ public sealed class ClickService : IClickExecutor
         ArgumentNullException.ThrowIfNull(window);
         ArgumentNullException.ThrowIfNull(point);
         ValidatePoint(point);
-
-        if (point.SyncMode == ClickSendMode.SendInput)
-        {
-            throw new GameProbeException(
-                GameProbeErrorKind.Unsupported,
-                "Chế độ sendInput chưa được bật trong P2. Dùng post hoặc send; sendInput sẽ được thêm sau khi có xác nhận rõ ràng.");
-        }
+        EnsureSupportedSyncMode(point);
 
         lock (_clickGate)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var stopwatch = Stopwatch.StartNew();
 
-            RefreshWindow(window);
-
-            var resolved = CoordinateResolver.Resolve(point, window.Info);
-            if (resolved.IsOutsideClientArea)
-            {
-                throw new GameProbeException(
-                    GameProbeErrorKind.OutOfBounds,
-                    $"Point '{point.Id}' nằm ngoài client area: raw ({resolved.RawX:0.##},{resolved.RawY:0.##}), " +
-                    $"client {window.Info.ClientSizeText}.");
-            }
+            var (resolved, lParam) = PrepareTarget(window, point);
 
             WaitForRateLimit(cancellationToken);
 
             var messages = ClickMessages.For(point.Button);
             var downWParam = new IntPtr(ClickMessages.GetDownWParam(point.Button, point.WParamMode));
-            var lParam = ClickMessages.MakeLParam(resolved.X, resolved.Y);
             var intervalMs = Math.Max(point.IntervalMs, _options.MinimumClickSpacingMs);
 
             _logger.Info(
@@ -90,7 +74,8 @@ public sealed class ClickService : IClickExecutor
                     ["y"] = resolved.Y,
                     ["button"] = point.Button.ToString().ToLowerInvariant(),
                     ["count"] = point.Count,
-                    ["mode"] = point.SyncMode.ToString().ToLowerInvariant()
+                    ["mode"] = point.SyncMode.ToString().ToLowerInvariant(),
+                    ["hoverSettleMs"] = point.HoverSettleMs
                 });
 
             try
@@ -108,6 +93,11 @@ public sealed class ClickService : IClickExecutor
                             IntPtr.Zero,
                             lParam,
                             cancellationToken);
+
+                        // Some game UIs only enable row buttons after the hover
+                        // state has been rendered. Give the UI one or more frames
+                        // before delivering the button-down message.
+                        Sleep(point.HoverSettleMs, cancellationToken);
                     }
 
                     SendMessage(
@@ -183,6 +173,125 @@ public sealed class ClickService : IClickExecutor
                 resolved.Y,
                 point.Count,
                 stopwatch.Elapsed);
+        }
+    }
+
+    public HoverExecutionResult Hover(
+        GameWindow window,
+        ClickPoint point,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        ArgumentNullException.ThrowIfNull(point);
+        ValidatePoint(point);
+        EnsureSupportedSyncMode(point);
+
+        lock (_clickGate)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var stopwatch = Stopwatch.StartNew();
+
+            var (resolved, lParam) = PrepareTarget(window, point);
+
+            _logger.Info(
+                "hover.start",
+                "Hover sequence started",
+                new Dictionary<string, object?>
+                {
+                    ["hwnd"] = window.Info.HandleHex,
+                    ["pid"] = window.Info.ProcessId,
+                    ["point"] = point.Id,
+                    ["x"] = resolved.X,
+                    ["y"] = resolved.Y,
+                    ["mode"] = point.SyncMode.ToString().ToLowerInvariant(),
+                    ["settleMs"] = point.HoverSettleMs
+                });
+
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                SendMessage(
+                    window,
+                    point.SyncMode,
+                    ClickMessages.WmMouseMove,
+                    IntPtr.Zero,
+                    lParam,
+                    cancellationToken);
+
+                Sleep(point.HoverSettleMs, cancellationToken);
+            }
+            catch (GameProbeException ex)
+            {
+                _logger.Error(
+                    "hover.failed",
+                    ex.Message,
+                    new Dictionary<string, object?>
+                    {
+                        ["hwnd"] = window.Info.HandleHex,
+                        ["pid"] = window.Info.ProcessId,
+                        ["point"] = point.Id,
+                        ["kind"] = ex.Kind.ToString(),
+                        ["win32"] = ex.Win32Error
+                    });
+                throw;
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.Warn(
+                    "hover.canceled",
+                    "Hover sequence canceled",
+                    new Dictionary<string, object?>
+                    {
+                        ["hwnd"] = window.Info.HandleHex,
+                        ["point"] = point.Id
+                    });
+                throw;
+            }
+
+            stopwatch.Stop();
+
+            _logger.Info(
+                "hover.done",
+                "Hover sequence completed",
+                new Dictionary<string, object?>
+                {
+                    ["hwnd"] = window.Info.HandleHex,
+                    ["pid"] = window.Info.ProcessId,
+                    ["point"] = point.Id,
+                    ["x"] = resolved.X,
+                    ["y"] = resolved.Y,
+                    ["durationMs"] = Math.Round(stopwatch.Elapsed.TotalMilliseconds, 1)
+                });
+
+            return new HoverExecutionResult(resolved.X, resolved.Y, stopwatch.Elapsed);
+        }
+    }
+
+    private (ResolvedPoint Resolved, IntPtr LParam) PrepareTarget(
+        GameWindow window,
+        ClickPoint point)
+    {
+        RefreshWindow(window);
+
+        var resolved = CoordinateResolver.Resolve(point, window.Info);
+        if (resolved.IsOutsideClientArea)
+        {
+            throw new GameProbeException(
+                GameProbeErrorKind.OutOfBounds,
+                $"Point '{point.Id}' nằm ngoài client area: raw ({resolved.RawX:0.##},{resolved.RawY:0.##}), " +
+                $"client {window.Info.ClientSizeText}.");
+        }
+
+        return (resolved, ClickMessages.MakeLParam(resolved.X, resolved.Y));
+    }
+
+    private static void EnsureSupportedSyncMode(ClickPoint point)
+    {
+        if (point.SyncMode == ClickSendMode.SendInput)
+        {
+            throw new GameProbeException(
+                GameProbeErrorKind.Unsupported,
+                "Chế độ sendInput chưa được bật trong P2. Dùng post hoặc send; sendInput sẽ được thêm sau khi có xác nhận rõ ràng.");
         }
     }
 
@@ -321,6 +430,11 @@ public sealed class ClickService : IClickExecutor
         if (point.IntervalMs is < 0 or > 600000)
         {
             throw new ArgumentOutOfRangeException(nameof(point), "intervalMs phải nằm trong khoảng 0..600000.");
+        }
+
+        if (point.HoverSettleMs is < 0 or > 10000)
+        {
+            throw new ArgumentOutOfRangeException(nameof(point), "hoverSettleMs phải nằm trong khoảng 0..10000.");
         }
     }
 }

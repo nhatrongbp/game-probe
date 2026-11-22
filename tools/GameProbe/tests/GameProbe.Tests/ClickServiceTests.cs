@@ -46,6 +46,42 @@ public sealed class ClickServiceTests
     }
 
     [Fact]
+    public void Hover_PostMode_SendsOnlyMouseMove()
+    {
+        using var hidden = new TestWindow("GameProbe Hover Post", 200, 100);
+        var window = Attach(hidden);
+        var transport = new FakeTransport();
+        var service = CreateService(transport);
+        var point = CreatePoint();
+
+        var result = service.Hover(window, point);
+
+        Assert.Equal(10, result.X);
+        Assert.Equal(20, result.Y);
+        Assert.Collection(
+            transport.Messages,
+            message =>
+            {
+                Assert.Equal(ClickMessages.WmMouseMove, message.Message);
+                Assert.Equal(IntPtr.Zero, message.WParam);
+                Assert.False(message.Synchronous);
+                Assert.Equal(ClickMessages.MakeLParam(10, 20), message.LParam);
+            });
+    }
+
+    [Fact]
+    public void Hover_InvalidSettle_ThrowsArgumentOutOfRange()
+    {
+        using var hidden = new TestWindow("GameProbe Hover Invalid", 200, 100);
+        var window = Attach(hidden);
+        var service = CreateService(new FakeTransport());
+        var point = CreatePoint();
+        point.HoverSettleMs = -1;
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => service.Hover(window, point));
+    }
+
+    [Fact]
     public void Click_CountTwoWithoutHover_SendsTwoDownUpPairs()
     {
         using var hidden = new TestWindow("GameProbe Click Repeat", 200, 100);
@@ -187,6 +223,7 @@ public sealed class ClickServiceTests
         IntervalMs = 20,
         SyncMode = ClickSendMode.Post,
         Hover = true,
+        HoverSettleMs = 0,
         WParamMode = WParamMode.Button
     };
 

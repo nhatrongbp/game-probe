@@ -22,5 +22,8 @@ public sealed class ClickPoint
 
     public bool Hover { get; set; } = true;
 
+    /// <summary>Delay after WM_MOUSEMOVE before the button-down message.</summary>
+    public int HoverSettleMs { get; set; }
+
     public WParamMode WParamMode { get; set; } = WParamMode.Button;
 }

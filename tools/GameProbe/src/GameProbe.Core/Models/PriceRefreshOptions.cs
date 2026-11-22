@@ -11,6 +11,12 @@ public sealed class PriceRefreshOptions
     /// <summary>Optional green-text pixel check that the relist button is present.</summary>
     public string? RelistGuardProbeId { get; set; }
 
+    /// <summary>
+    /// How long to wait for the relist guard pixel after sending a hover pulse.
+    /// The green relist text only exists while the row is hovered.
+    /// </summary>
+    public int RelistGuardTimeoutMs { get; set; } = 1000;
+
     /// <summary>Pixel probe that matches the red buy button while the dialog is open.</summary>
     public string PopupProbeId { get; set; } = "";
 

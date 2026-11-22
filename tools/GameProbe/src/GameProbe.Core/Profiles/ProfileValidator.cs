@@ -172,6 +172,11 @@ public static class ProfileValidator
                 result.AddError($"{path}.intervalMs must be between 20 and 600000.");
             }
 
+            if (point.HoverSettleMs is < 0 or > 10000)
+            {
+                result.AddError($"{path}.hoverSettleMs must be between 0 and 10000.");
+            }
+
             if (point.SyncMode == ClickSendMode.SendInput)
             {
                 result.AddWarning(
@@ -401,6 +406,11 @@ public static class ProfileValidator
         if (options.PopupTimeoutMs is < 100 or > 60000)
         {
             result.AddError("priceRefresh.popupTimeoutMs must be between 100 and 60000.");
+        }
+
+        if (options.RelistGuardTimeoutMs is < 100 or > 60000)
+        {
+            result.AddError("priceRefresh.relistGuardTimeoutMs must be between 100 and 60000.");
         }
 
         if (options.CloseTimeoutMs is < 100 or > 60000)
