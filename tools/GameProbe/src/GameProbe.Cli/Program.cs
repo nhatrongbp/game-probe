@@ -1,5 +1,7 @@
 using System.Text;
+using System.Text.Json;
 using GameProbe.Core.Diagnostics;
+using GameProbe.Core.Profiles;
 
 namespace GameProbe.Cli;
 
@@ -9,15 +11,78 @@ internal static class Program
     {
         Console.OutputEncoding = Encoding.UTF8;
 
-        var logger = new ConsoleActionLogger(Console.Error);
+        var logger = new CompositeActionLogger(
+            new ConsoleActionLogger(Console.Error),
+            new JsonLineActionLogger());
 
         try
         {
             return Run(args, logger);
         }
+        catch (CliUsageException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            logger.Warn("cli.usage", ex.Message);
+            return ExitCodes.Usage;
+        }
+        catch (ProfileValidationException ex)
+        {
+            logger.Error("cli.profile_invalid", "Profile validation failed");
+            Console.Error.WriteLine("Profile không hợp lệ:");
+            foreach (var error in ex.Errors)
+            {
+                Console.Error.WriteLine($"  - {error}");
+            }
+
+            return ExitCodes.Usage;
+        }
+        catch (FileNotFoundException ex)
+        {
+            logger.Error("cli.file_not_found", ex.Message);
+            Console.Error.WriteLine($"Không tìm thấy file: {ex.FileName ?? ex.Message}");
+            return ExitCodes.NotFound;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            logger.Error("cli.access_denied", ex.Message);
+            Console.Error.WriteLine($"Không có quyền truy cập: {ex.Message}");
+            return ExitCodes.AccessDenied;
+        }
+        catch (JsonException ex)
+        {
+            logger.Error("cli.json_invalid", ex.Message);
+            Console.Error.WriteLine($"JSON không hợp lệ: {ex.Message}");
+            return ExitCodes.Usage;
+        }
+        catch (GameProbeException ex)
+        {
+            logger.Error(
+                "cli.error",
+                ex.Message,
+                new Dictionary<string, object?>
+                {
+                    ["kind"] = ex.Kind.ToString(),
+                    ["win32"] = ex.Win32Error
+                });
+            Console.Error.WriteLine($"Lỗi: {ex.Message}");
+            return MapGameProbeError(ex.Kind);
+        }
+        catch (OperationCanceledException)
+        {
+            logger.Warn("cli.canceled", "Operation canceled");
+            Console.Error.WriteLine("Đã huỷ.");
+            return ExitCodes.Canceled;
+        }
+        catch (ArgumentException ex)
+        {
+            logger.Error("cli.argument", ex.Message);
+            Console.Error.WriteLine($"Tham số không hợp lệ: {ex.Message}");
+            return ExitCodes.Usage;
+        }
         catch (Exception ex)
         {
             logger.Error("cli.unhandled", ex.Message);
+            Console.Error.WriteLine($"Lỗi không mong muốn: {ex.Message}");
             return ExitCodes.Failure;
         }
     }
@@ -69,6 +134,20 @@ internal static class Program
                     _ => UnknownWindowCommand(args[1])
                 };
 
+            case "click":
+                return Commands.ClickCommand.Execute(args.Skip(1).ToArray(), logger);
+
+            case "capture":
+                return Commands.CaptureCommand.Execute(args.Skip(1).ToArray(), logger);
+
+            case "pixel":
+                if (args.Length >= 2 && args[1].Equals("watch", StringComparison.OrdinalIgnoreCase))
+                {
+                    return Commands.PixelWatchCommand.Execute(args.Skip(2).ToArray(), logger);
+                }
+
+                return Commands.PixelReadCommand.Execute(args.Skip(1).ToArray(), logger);
+
             default:
                 Console.Error.WriteLine($"Lệnh không hợp lệ: {args[0]}");
                 HelpText.PrintGeneral();
@@ -81,5 +160,22 @@ internal static class Program
         Console.Error.WriteLine($"Lệnh window không hợp lệ: {command}");
         HelpText.PrintWindowCommands();
         return ExitCodes.Usage;
+    }
+
+    private static int MapGameProbeError(GameProbeErrorKind kind)
+    {
+        return kind switch
+        {
+            GameProbeErrorKind.InvalidConfiguration => ExitCodes.Usage,
+            GameProbeErrorKind.Unsupported => ExitCodes.Usage,
+            GameProbeErrorKind.WindowNotFound => ExitCodes.NotFound,
+            GameProbeErrorKind.WindowUnavailable => ExitCodes.NotFound,
+            GameProbeErrorKind.AccessDenied => ExitCodes.AccessDenied,
+            GameProbeErrorKind.OutOfBounds => ExitCodes.OutOfBounds,
+            GameProbeErrorKind.SendFailed => ExitCodes.SendFailed,
+            GameProbeErrorKind.Timeout => ExitCodes.Timeout,
+            GameProbeErrorKind.Canceled => ExitCodes.Canceled,
+            _ => ExitCodes.Failure
+        };
     }
 }

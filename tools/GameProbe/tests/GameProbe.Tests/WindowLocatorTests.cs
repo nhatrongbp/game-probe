@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using GameProbe.Core.Diagnostics;
 using GameProbe.Core.Windows;
 using Xunit;
@@ -7,31 +6,10 @@ namespace GameProbe.Tests;
 
 public sealed class WindowLocatorTests
 {
-    private const uint WsPopup = 0x80000000;
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-    private static extern IntPtr CreateWindowExW(
-        uint dwExStyle,
-        string lpClassName,
-        string lpWindowName,
-        uint dwStyle,
-        int x,
-        int y,
-        int nWidth,
-        int nHeight,
-        IntPtr hWndParent,
-        IntPtr hMenu,
-        IntPtr hInstance,
-        IntPtr lpParam);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool DestroyWindow(IntPtr hWnd);
-
     [Fact]
     public void DescribeWindow_ReadsNativeWindowProperties()
     {
-        using var hidden = new HiddenWindow("GameProbe Hidden Test", 321, 123);
+        using var hidden = new TestWindow("GameProbe Hidden Test", 321, 123);
 
         var locator = new WindowLocator(NullActionLogger.Instance);
         var info = locator.DescribeWindow(hidden.Handle);
@@ -51,7 +29,7 @@ public sealed class WindowLocatorTests
     public void Find_ByTitle_FindsHiddenWindow()
     {
         var title = "GameProbe Hidden Search " + Guid.NewGuid().ToString("N");
-        using var hidden = new HiddenWindow(title, 200, 100);
+        using var hidden = new TestWindow(title, 200, 100);
 
         var locator = new WindowLocator(NullActionLogger.Instance);
         var found = locator.Find(new WindowSearchCriteria
@@ -76,7 +54,7 @@ public sealed class WindowLocatorTests
     [Fact]
     public void GameWindow_Refresh_ReadsLatestInfo()
     {
-        using var hidden = new HiddenWindow("GameProbe Refresh Test", 400, 200);
+        using var hidden = new TestWindow("GameProbe Refresh Test", 400, 200);
         var locator = new WindowLocator(NullActionLogger.Instance);
 
         var gameWindow = GameWindow.AttachByHandle(locator, hidden.Handle);
@@ -90,7 +68,7 @@ public sealed class WindowLocatorTests
     [Fact]
     public void Monitor_AttachesAndDetaches()
     {
-        var hidden = new HiddenWindow("GameProbe Monitor Test", 300, 150);
+        var hidden = new TestWindow("GameProbe Monitor Test", 300, 150);
         var locator = new WindowLocator(NullActionLogger.Instance);
         using var monitor = new GameWindowMonitor(
             locator,
@@ -123,45 +101,6 @@ public sealed class WindowLocatorTests
         finally
         {
             hidden.Dispose();
-        }
-    }
-
-    private sealed class HiddenWindow : IDisposable
-    {
-        private IntPtr _handle;
-
-        public HiddenWindow(string title, int width, int height)
-        {
-            _handle = CreateWindowExW(
-                0,
-                "STATIC",
-                title,
-                WsPopup,
-                0,
-                0,
-                width,
-                height,
-                IntPtr.Zero,
-                IntPtr.Zero,
-                IntPtr.Zero,
-                IntPtr.Zero);
-
-            if (_handle == IntPtr.Zero)
-            {
-                throw new InvalidOperationException(
-                    $"CreateWindowExW failed (Win32 {Marshal.GetLastWin32Error()}).");
-            }
-        }
-
-        public IntPtr Handle => _handle;
-
-        public void Dispose()
-        {
-            if (_handle != IntPtr.Zero)
-            {
-                DestroyWindow(_handle);
-                _handle = IntPtr.Zero;
-            }
         }
     }
 }

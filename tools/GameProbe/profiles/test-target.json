@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "name": "TestTarget fixture",
+  "target": {
+    "className": "",
+    "processName": "GameProbe.TestTarget",
+    "titleContains": "GameProbe TestTarget"
+  },
+  "clickPoints": [
+    {
+      "id": "white",
+      "name": "White cell",
+      "x": { "mode": "client", "value": 50 },
+      "y": { "mode": "client", "value": 60 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": true,
+      "wParamMode": "button"
+    },
+    {
+      "id": "black",
+      "name": "Black cell",
+      "x": { "mode": "client", "value": 250 },
+      "y": { "mode": "client", "value": 60 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": true,
+      "wParamMode": "button"
+    },
+    {
+      "id": "blue",
+      "name": "Blue cell",
+      "x": { "mode": "client", "value": 550 },
+      "y": { "mode": "client", "value": 60 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": true,
+      "wParamMode": "button"
+    },
+    {
+      "id": "yellow",
+      "name": "Yellow cell",
+      "x": { "mode": "client", "value": 50 },
+      "y": { "mode": "client", "value": 180 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": true,
+      "wParamMode": "button"
+    },
+    {
+      "id": "fc-blue",
+      "name": "FC blue cell",
+      "x": { "mode": "client", "value": 50 },
+      "y": { "mode": "client", "value": 300 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": true,
+      "wParamMode": "button"
+    },
+    {
+      "id": "toggle",
+      "name": "Toggle color cell",
+      "x": { "mode": "client", "value": 60 },
+      "y": { "mode": "client", "value": 540 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": true,
+      "wParamMode": "button"
+    }
+  ],
+  "pixelProbes": [
+    {
+      "id": "white-color",
+      "name": "White cell color",
+      "x": { "mode": "client", "value": 50 },
+      "y": { "mode": "client", "value": 60 },
+      "expectedClass": 0,
+      "expectedRgb": "#FFFFFF",
+      "tolerance": 8,
+      "watchIntervalMs": 200
+    },
+    {
+      "id": "black-color",
+      "name": "Black cell color",
+      "x": { "mode": "client", "value": 250 },
+      "y": { "mode": "client", "value": 60 },
+      "expectedClass": 3,
+      "expectedRgb": "#000000",
+      "tolerance": 8,
+      "watchIntervalMs": 200
+    },
+    {
+      "id": "blue-color",
+      "name": "Blue cell color",
+      "x": { "mode": "client", "value": 550 },
+      "y": { "mode": "client", "value": 60 },
+      "expectedClass": 1,
+      "expectedRgb": "#0000FF",
+      "tolerance": 8,
+      "watchIntervalMs": 200
+    },
+    {
+      "id": "yellow-color",
+      "name": "Yellow cell color",
+      "x": { "mode": "client", "value": 50 },
+      "y": { "mode": "client", "value": 180 },
+      "expectedClass": 2,
+      "expectedRgb": "#FFFF00",
+      "tolerance": 8,
+      "watchIntervalMs": 200
+    },
+    {
+      "id": "fc-blue-color",
+      "name": "FC blue cell color",
+      "x": { "mode": "client", "value": 50 },
+      "y": { "mode": "client", "value": 300 },
+      "expectedClass": 1,
+      "expectedRgb": "#00A0FF",
+      "tolerance": 8,
+      "watchIntervalMs": 200
+    },
+    {
+      "id": "toggle-color",
+      "name": "Toggle color state",
+      "x": { "mode": "client", "value": 60 },
+      "y": { "mode": "client", "value": 540 },
+      "tolerance": 8,
+      "watchIntervalMs": 200
+    }
+  ],
+  "memory": {
+    "minLength": 4,
+    "encodings": ["utf16le", "utf8"],
+    "regionTypes": ["private"],
+    "maxResults": 20000,
+    "filter": ""
+  },
+  "hotkeys": {
+    "captureCursor": "F8",
+    "testClick": "F9",
+    "readPixel": "F10",
+    "memorySnapshot": "F11",
+    "panic": "F12"
+  },
+  "logging": {
+    "level": "info",
+    "screenshotOnError": false
+  }
+}

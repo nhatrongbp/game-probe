@@ -3,6 +3,7 @@
     <OutputType>Exe</OutputType>
     <RootNamespace>GameProbe.Cli</RootNamespace>
     <AssemblyName>gameprobe</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>

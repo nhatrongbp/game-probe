@@ -10,6 +10,9 @@ public sealed class ProfileStoreTests
     private static string SampleProfilePath =>
         Path.Combine(AppContext.BaseDirectory, "profiles", "fc-online.json");
 
+    private static string TestTargetProfilePath =>
+        Path.Combine(AppContext.BaseDirectory, "profiles", "test-target.json");
+
     [Fact]
     public void SampleProfile_ShouldBeValid()
     {
@@ -20,12 +23,27 @@ public sealed class ProfileStoreTests
 
         Assert.True(validation.IsValid, string.Join("; ", validation.Errors));
         Assert.Equal("FC Online", profile.Name);
-        Assert.Equal(2, profile.ClickPoints.Count);
-        Assert.Single(profile.PixelProbes);
+        Assert.Equal(3, profile.ClickPoints.Count);
+        Assert.Equal(2, profile.PixelProbes.Count);
         Assert.Equal(Anchor.Center, profile.ClickPoints[1].X.Anchor);
         Assert.Equal(30, profile.ClickPoints[1].X.Offset);
         Assert.Equal(Anchor.Bottom, profile.ClickPoints[1].Y.Anchor);
         Assert.Equal(-67, profile.ClickPoints[1].Y.Offset);
+    }
+
+    [Fact]
+    public void TestTargetProfile_ShouldBeValid()
+    {
+        var store = new ProfileStore();
+
+        var profile = store.Load(TestTargetProfilePath);
+        var validation = ProfileValidator.Validate(profile);
+
+        Assert.True(validation.IsValid, string.Join("; ", validation.Errors));
+        Assert.Equal("TestTarget fixture", profile.Name);
+        Assert.Equal(6, profile.ClickPoints.Count);
+        Assert.Equal(6, profile.PixelProbes.Count);
+        Assert.Equal("GameProbe.TestTarget", profile.Target.ProcessName);
     }
 
     [Fact]

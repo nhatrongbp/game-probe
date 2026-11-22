@@ -19,6 +19,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\profiles\fc-online.json" Link="profiles\fc-online.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\profiles\*.json" Link="profiles\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

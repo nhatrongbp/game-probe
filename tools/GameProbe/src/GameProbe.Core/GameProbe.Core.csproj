@@ -3,4 +3,8 @@
     <RootNamespace>GameProbe.Core</RootNamespace>
     <AssemblyName>GameProbe.Core</AssemblyName>
   </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="GameProbe.Tests" />
+  </ItemGroup>
 </Project>

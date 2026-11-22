@@ -32,6 +32,19 @@
       "syncMode": "post",
       "hover": true,
       "wParamMode": "button"
+    },
+    {
+      "id": "missions-new",
+      "name": "Nhiệm vụ mới",
+      "x": { "mode": "client", "value": 1030 },
+      "y": { "mode": "client", "value": 645 },
+      "button": "left",
+      "count": 1,
+      "holdMs": 50,
+      "intervalMs": 200,
+      "syncMode": "post",
+      "hover": true,
+      "wParamMode": "button"
     }
   ],
   "pixelProbes": [
@@ -42,6 +55,16 @@
       "y": { "mode": "anchor", "anchor": "bottom", "offset": -67 },
       "expectedClass": 1,
       "expectedRgb": "#00A0FF",
+      "tolerance": 8,
+      "watchIntervalMs": 200
+    },
+    {
+      "id": "missions-new-color",
+      "name": "Nhiệm vụ mới button state",
+      "x": { "mode": "client", "value": 1030 },
+      "y": { "mode": "client", "value": 645 },
+      "expectedClass": 3,
+      "expectedRgb": "#07F468",
       "tolerance": 8,
       "watchIntervalMs": 200
     }

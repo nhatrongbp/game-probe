@@ -1,7 +1,7 @@
 # Kế hoạch triển khai GameProbe
 
-> **Trạng thái:** Kế hoạch triển khai, chưa viết mã
-> **Ngày:** 2026-11-21
+> **Trạng thái:** Đang triển khai — P0/P1/P2 đã xong và nghiệm thu; tiếp theo P3
+> **Ngày:** 2026-11-21 (cập nhật 2026-11-22)
 > **Tài liệu tham chiếu:** `docs/ffzik-auto-click-analysis.md`
 > **Đối tượng kiểm thử chính:** FC Online, dùng account test
 
@@ -269,6 +269,8 @@ Quy tắc an toàn:
 | `3` | còn lại | màu khác/đen |
 
 - `tolerance` mặc định 8, cấu hình được.
+- Triển khai P2 thêm fallback cho class `1`: nếu `B - max(R,G) > tolerance` thì coi là
+  xanh dương, để nhận diện màu gradient như `#00A0FF` (profile mẫu kỳ vọng class 1).
 - Trả thêm `IsExactMatch` khi so với `expectedRgb`.
 - Hỗ trợ lấy mẫu nhiều pixel quanh tâm (3×3 hoặc 5×5) và trả về trung bình/mode nếu bật.
 - Watch mode: poll `watchIntervalMs` (tối thiểu 50 ms), log mỗi lần RGB hoặc class thay đổi.
@@ -550,16 +552,55 @@ HWND `0x1506CA`, PID `15732`, client `1280x720`, DPI `96`, window rect
 
 ### P2 — Click và pixel
 
-- [ ] `CoordinateResolver` cho `client`, `percent`, `anchor`.
-- [ ] Hotkey F8 capture cursor → point.
-- [ ] `ClickService` với `post`/`send`; `sendInput` để sau flag.
-- [ ] `PixelProbe` đọc 1×1, phân loại màu, tolerance.
-- [ ] CLI `click`, `pixel`, `pixel watch`.
-- [ ] Rate limit, kiểm tra biên, log lỗi.
-- [ ] Fixture offline: panel vẽ lưới màu + log mouse message.
-- [ ] Unit test: coordinate math, color classify, message mapping.
+- [x] `CoordinateResolver` cho `client`, `percent`, `anchor`.
+- [x] Hotkey F8 capture cursor → point (CLI `capture`; hotkey GUI thuộc P4).
+- [x] `ClickService` với `post`/`send`; `sendInput` bị từ chối rõ ràng, để sau flag.
+- [x] `PixelProbe` đọc 1×1, phân loại màu, tolerance.
+- [x] CLI `click`, `pixel`, `pixel watch`, `capture`.
+- [x] Rate limit, kiểm tra biên, log lỗi.
+- [x] Fixture offline: panel vẽ lưới màu + ô TOGGLE đổi màu + log mouse message ra UI/file.
+- [x] Unit test: coordinate math, color classify, message mapping, click/pixel/watcher.
+
+**Trạng thái (2026-11-22): Đã xong P2.** Build Release sạch warning, 88 test pass
+(gồm GDI extraction trên memory DC và PostMessage/SendMessage trên hidden window).
+Fixture pass pixel/click/watch transition (log nhận đúng WM_* và TOGGLE).
+FC Online pixel đọc exact `#07F468`; click `missions-new` bằng CLI elevated
+đã làm mới UI game thành công.
+
+**Kết quả offline (2026-11-22):**
+
+- Fixture `GameProbe.TestTarget`: 900x600, DPI 96, đúng 1 cửa sổ.
+- 5/5 pixel probe exact: `#FFFFFF` class 0, `#0000FF` class 1, `#FFFF00` class 2,
+  `#000000` class 3, `#00A0FF` class 1 (fallback gradient).
+- Click `post` vào ô white/blue gửi thành công; log fixture xác nhận
+  `WM_MOUSEMOVE`/`WM_LBUTTONDOWN`/`WM_LBUTTONUP` tại `(50,60)` và `(550,60)`,
+  tức PostMessage tới đúng HWND/client coordinates.
+- Fixture bản mới (TOGGLE + file log) đã pass watch transition: click `toggle`
+  đổi `#00A0FF` ↔ `#FFD700`; watch 99 mẫu, 3 changes, chuỗi
+  `#00A0FF → #FFD700 → #00A0FF`.
+- FC Online: attach đúng `1280x720`, DPI 96; pixel tại `play` `(670,653)` đọc
+  `#636969` class 0. Màn hình lúc test là TTCM, không phải lobby có nút play xanh,
+  nên expected `#00A0FF`/class 1 chưa khớp.
+- Đã thêm point/probe `missions-new` cho nút **Nhiệm vụ mới**: `(1030,645)`,
+  đọc exact `#07F468` class 3 (green thuộc "khác/đen" theo bảng FFZik).
+  Dry-run OK.
+- Click `missions-new` bằng CLI elevated lúc `2026-11-22 20:28:45`:
+  HWND `0xB00F0`, PID `5276`, `(1030,645)`, `post`, hover=yes, 73.6 ms.
+  UI game đã làm mới nhiệm vụ thành công.
+- Lưu ý vận hành: thử từ PowerShell không elevated bị `WM_MOUSEMOVE`
+  `PostMessage` trả `Win32 5` (UIPI). Click vào game cần CLI Administrator.
+  Nếu elevated vẫn lỗi thì game/anti-cheat chặn message; không bypass.
+
+**Ghi chú triển khai:**
+
+- Phân loại màu giữ công thức FFZik, thêm fallback cho xanh gradient kiểu `#00A0FF`
+  (`B` vượt trội `R`/`G`) để khớp profile mẫu và UI thực tế.
+- Tọa độ ngoài client area bị từ chối (exit code 4) thay vì click vào biên.
+- `sendInput` chưa triển khai trong P2; profile có `syncMode: sendInput` sẽ báo unsupported.
 
 **Done khi:** click đúng trên fixture; pixel đọc đúng RGB; trên FC Online, click vào một point an toàn có phản hồi và pixel đọc được.
+
+**Đã xong P2 (2026-11-22).**
 
 ### P3 — Memory text
 
