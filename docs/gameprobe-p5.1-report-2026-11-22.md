@@ -3,7 +3,8 @@
 > **Ngày:** 2026-11-22
 > **Branch:** `main`
 > **Commit:** `7e219dd` (code) + commit báo cáo này — `feat(gameprobe): add price refresh scenario with pixel region comparison`
-> **Trạng thái:** code + unit test xong; dry-run live pass; chưa ghi nhận log của lần mua thật `--confirm-buy`.
+> **Trạng thái:** code + unit test xong; dry-run live pass; đã fix hover-only và
+> dry-run lại 5/5 khi không hover; chưa chạy `--confirm-buy`.
 
 ---
 
@@ -22,6 +23,9 @@ Kết quả chính:
   capture method `BitBlt`, không false positive.
 - Guard `relist-guard` đã chặn một lần chạy khi UI chưa sẵn sàng, không click mù.
 - Code đã fast-forward vào `main`; branch `feat/price-refresh` đã xoá sau khi merge.
+- Sau báo cáo ban đầu, phát hiện nút `Đăng ký lại` chỉ nhận click khi hàng đã
+  hover; đã bổ sung hover pulse + guard poll và dry-run lại **5/5 popup khi
+  chuột ngoài hàng** (chi tiết ở mục 14).
 
 ---
 
@@ -380,3 +384,117 @@ P5.1 đã hoàn thành phần code, cấu hình và kiểm thử offline. Live d
 vùng giá ổn định pixel, guard và luồng click hoạt động trên FC Online. Bước mua
 thật cần được chạy và ghi nhận riêng với account test trước khi coi P5.1 là
 hoàn tất nghiệm thu.
+
+---
+
+## 14. Cập nhật 2026-11-23 — nút `Đăng ký lại` chỉ nhận click khi đã hover
+
+### 14.1. Hiện tượng
+
+Trên UI thật, nút `Đăng ký lại` và `Hủy` của hàng 1 chỉ hiện khi hover vào hàng.
+Khi chuột thật ở nơi khác, vùng nút là nền tối `#1B1C1E`. Câu hỏi: gửi click
+vào tọa độ `(991,181)` khi chưa hover có mở được popup `Mua cầu thủ` không?
+
+### 14.2. Kết quả test thủ công
+
+Chuột thật giữ ngoài hàng 1, chạy CLI bằng PowerShell Administrator:
+
+| Thời điểm | Lệnh | Kết quả |
+|---|---|---|
+| `23:44:28` | `click --point relist --no-hover` | Hàng hover, **popup không mở** |
+| `23:50:37` | `click --point relist` (hover=yes) | Hàng hover, **popup vẫn không mở** |
+| sau đó | chạy lại đúng lệnh `click --point relist` | **Popup mở** |
+| `00:05:29` | `click --point relist --hover-only` | Hàng hover, guard xanh `#07F368` |
+| `23:54:47` | đọc sau khi `Huỷ` | guard `#1B1C1E`, popup `#2C392B` |
+
+Kết luận:
+
+- Click đầu tiên trên hàng chưa hover chỉ **bật hover**, chưa kích hoạt nút.
+- Click thứ hai, khi hover đã hiện, mới mở popup.
+- `WM_MOUSEMOVE` đơn lẻ đã đủ bật hover (test `--hover-only`).
+- Sau khi popup đóng, hover bị xoá nếu chuột thật ở nơi khác; guard đọc lại nền tối.
+
+### 14.3. Màu xanh không phải nguyên nhân
+
+Đọc trực tiếp từ ảnh `screenshots/3.png` tại điểm guard `(972,181)`
+(quy đổi screen `(980,212)`):
+
+- Màu thực tế: `#07F368`.
+- Profile kỳ vọng: `#08F368`, tolerance 24.
+- Lệch 1 ở R/G, vẫn khớp tolerance.
+
+Lỗi guard `#1B1C1E` ở lần chạy `23:13` là do hover đã mất, không phải màu bị đổi.
+
+### 14.4. Fix
+
+| File | Thay đổi |
+|---|---|
+| `Models/ClickPoint.cs` | Thêm `hoverSettleMs` (mặc định 0; `relist` = 250 ms). |
+| `Input/HoverExecutionResult.cs` | Kết quả hover (x, y, duration). |
+| `Input/IClickExecutor.cs` | Thêm `Hover(window, point)`. |
+| `Input/ClickService.cs` | `Hover` chỉ gửi `WM_MOUSEMOVE` rồi chờ `hoverSettleMs`; `Click` cũng chờ `hoverSettleMs` sau move trước down/up. |
+| `Models/PriceRefreshOptions.cs` | Thêm `relistGuardTimeoutMs` (mặc định 1000 ms). |
+| `Scenario/PriceRefreshScenario.cs` | Trước mỗi guard: gọi `Hover(relist)`, poll `relist-guard` đến khi xanh hoặc timeout. |
+| `Cli/Commands/ClickCommand.cs` | Thêm `--hover-only` để kiểm tra hover mà không click. |
+| `profiles/fc-online.json` | `relist.hoverSettleMs=250`, `priceRefresh.relistGuardTimeoutMs=1000`. |
+| `Profiles/ProfileValidator.cs` | Validate `hoverSettleMs` 0..10000, `relistGuardTimeoutMs` 100..60000. |
+| Tests | +5 test: hover chỉ gửi move, validate settle, guard đổi xanh sau hover, round-trip profile, timeout guard. |
+
+Luồng mới:
+
+```text
+mỗi attempt:
+  hover pulse relist (WM_MOUSEMOVE + 250 ms)
+  poll relist-guard tối đa 1000 ms
+  click relist (move + 250 ms + down/up)
+  chờ popup → chụp → Huỷ
+```
+
+### 14.5. Live dry-run sau fix
+
+Chuột thật ngoài hàng 1, chạy:
+
+```powershell
+& $gp scenario price-refresh --profile profiles\fc-online.json --dry-run --max-attempts 5 --start-delay 3000
+```
+
+Log `gameprobe-20261123.jsonl`, run `00:06:22–00:06:37`:
+
+| Thông số | Kết quả |
+|---|---|
+| Số popup | **5/5** |
+| Hover pulse mỗi attempt | ~265–280 ms |
+| Click `relist` | ~320–328 ms (250 ms settle + 50 ms hold) |
+| Popup detection | ~542–660 ms |
+| Guard | Pass cả 5 lần, không abort |
+| Baseline/current hash | `0xFB57650394FD6A28` |
+| Changed pixels | 0 ở cả 4 lần so sánh |
+| Kết quả | `MaxAttemptsReached` |
+| Tổng thời gian | 15679.3 ms |
+| Popup sau run | Đã đóng (`#2C392B`) |
+
+Đây là lần đầu scenario chạy đủ 5 popup **không cần đặt chuột thật lên hàng**.
+
+### 14.6. Build và test sau fix
+
+```text
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Passed! - Failed: 0, Passed: 119, Skipped: 0, Total: 119
+```
+
+### 14.7. Git
+
+| Commit | Nội dung |
+|---|---|
+| `92a5be2` | `fix(gameprobe): hover relist button before guard and click` (code + profile + tests + README) |
+| commit báo cáo này | Cập nhật mục 14 |
+
+### 14.8. Việc còn lại
+
+- Chạy `--confirm-buy` trên account test và ghi log.
+- Lặp dry-run 5–10 lần với chuột ngoài hàng để xác nhận ổn định.
+- Thử thêm trường hợp chuột thật đang hover hàng 1 (không được làm click đôi).
+- Nếu UI chậm, tăng `relist.hoverSettleMs` hoặc `relistGuardTimeoutMs`.
