@@ -9,8 +9,12 @@ TestResults/
 # Runtime logs, snapshots, temp files
 logs/
 snapshots/
+temp/
 *.jsonl
 *.tmp
+
+# Debug capture artifacts (region/BMP dumps)
+*.bmp
 
 # FFZik reference binaries: kept locally, not committed
 FFZik/

@@ -337,7 +337,7 @@ Mở PowerShell **Run as administrator**, giữ game ở `1280×720`, DPI 96,
 windowed/borderless:
 
 ```powershell
-cd "D:\git\New folder\tools\GameProbe"
+cd "D:\git\game-probe\tools\GameProbe"
 $gp = "src\GameProbe.Cli\bin\Release\net8.0-windows\gameprobe.exe"
 
 # 1. Mở popup thủ công, chụp thử vùng giá
